@@ -1,8 +1,6 @@
-import OpenAI from "openai";
+import { openrouter, MODEL } from "@/lib/openrouter";
 import type { AgentState } from "../state";
 import { findCachedPlaces } from "../utils/place-cache";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function dispatcher(
   state: AgentState
@@ -12,10 +10,10 @@ export async function dispatcher(
   // Generate optimized Korean search keywords via LLM
   let searchTerms: string;
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const completion = await openrouter.chat.completions.create({
+      model: MODEL,
       temperature: 0,
-      max_tokens: 100,
+      max_tokens: 2000,
       messages: [
         {
           role: "system",

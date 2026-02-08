@@ -1,8 +1,6 @@
-import OpenAI from "openai";
+import { openrouter, MODEL, extractJson } from "@/lib/openrouter";
 import type { AgentState, RawCrawledPlace } from "../state";
 import { googleSearch } from "../utils/google-search";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function instagramAgent(
   state: AgentState
@@ -22,10 +20,10 @@ export async function instagramAgent(
       .map((r) => `게시물: ${r.title}\n설명: ${r.snippet}\nURL: ${r.url}`)
       .join("\n---\n");
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const completion = await openrouter.chat.completions.create({
+      model: MODEL,
       temperature: 0,
-      max_tokens: 500,
+      max_tokens: 4000,
       messages: [
         {
           role: "system",
@@ -37,13 +35,13 @@ JSON 배열로 반환: [{"name": "가게이름", "snippet": "관련 설명"}]
         },
         { role: "user", content: snippetText },
       ],
-      response_format: { type: "json_object" },
+
     });
 
     const content = completion.choices[0]?.message?.content;
     if (!content) return { crawledPlaces: [] };
 
-    const parsed = JSON.parse(content);
+    const parsed = JSON.parse(extractJson(content));
     const items: { name: string; snippet?: string }[] = Array.isArray(parsed)
       ? parsed
       : parsed.places || parsed.restaurants || [];

@@ -31,15 +31,35 @@ export default function PlaceList({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Search result header */}
+      {/* Search result header with AI response */}
       {isSearchMode && (
         <div className="px-4 py-3 bg-indigo-50 border-b border-indigo-100">
           <p className="text-sm font-medium text-indigo-900">
             🎯 {searchResult.persona}
           </p>
-          <p className="text-xs text-indigo-600 mt-1">
-            {searchResult.routeSummary}
-          </p>
+          <div className="mt-2 p-3 bg-white rounded-lg border border-indigo-100">
+            <p className="text-xs font-semibold text-gray-700 mb-1.5">
+              📍 추천 동선
+            </p>
+            <p className="text-xs text-indigo-700 font-medium leading-relaxed">
+              {searchResult.routeSummary}
+            </p>
+            <div className="mt-2 pt-2 border-t border-gray-100 space-y-1.5">
+              {searchResult.recommendations.map((rec) => {
+                const place = searchResult.places.find((p) => p.id === rec.id);
+                const emoji = rec.type === "parking" ? "🅿️" : rec.type === "cafe" ? "☕" : "🍽️";
+                return (
+                  <div key={rec.id} className="text-xs text-gray-600 leading-relaxed">
+                    <span className="font-semibold text-gray-800">
+                      {emoji} {rec.order}. {place?.name || ""}
+                    </span>
+                    <span className="mx-1">—</span>
+                    <span>{rec.reason}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 

@@ -1,7 +1,5 @@
-import OpenAI from "openai";
+import { openrouter, MODEL, extractJson } from "@/lib/openrouter";
 import type { Place, PlaceType } from "@/types/place";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 function compressPlace(
   place: Place,
@@ -98,10 +96,10 @@ interface LLMResponse {
 
 export async function extractLocation(query: string): Promise<string | null> {
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const completion = await openrouter.chat.completions.create({
+      model: MODEL,
       temperature: 0,
-      max_tokens: 100,
+      max_tokens: 2000,
       messages: [
         {
           role: "system",
@@ -150,20 +148,20 @@ ${compressed.join("\n")}
 사용자 요청: ${query}`;
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const completion = await openrouter.chat.completions.create({
+      model: MODEL,
       temperature: 0.3,
+      max_tokens: 16000,
       messages: [
         { role: "system", content: buildSystemPrompt(anchor) },
         { role: "user", content: userMessage },
       ],
-      response_format: { type: "json_object" },
     });
 
     const content = completion.choices[0]?.message?.content;
     if (!content) throw new Error("No response from LLM");
 
-    const parsed: LLMResponse = JSON.parse(content);
+    const parsed: LLMResponse = JSON.parse(extractJson(content));
 
     // Map compressed IDs back to real IDs
     parsed.recommendations = parsed.recommendations
