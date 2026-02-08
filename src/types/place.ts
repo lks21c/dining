@@ -36,8 +36,14 @@ export interface Cafe extends BasePlace {
 export interface ParkingLot extends BasePlace {
   type: "parking";
   parkingType: string;
+  address?: string;
   capacity: number;
   hourlyRate: number;
+  baseTime?: number;
+  baseRate?: number;
+  extraTime?: number;
+  extraRate?: number;
+  freeNote?: string;
   operatingHours: string;
 }
 

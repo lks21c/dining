@@ -14,8 +14,7 @@ export default function SearchThisAreaButton({
   return (
     <button
       onClick={onClick}
-      className="absolute top-20 left-1/2 -translate-x-1/2 z-20
-        bg-white text-gray-800 px-4 py-2 rounded-full shadow-lg
+      className="bg-white text-gray-800 px-4 py-2 rounded-full shadow-lg
         text-sm font-medium hover:bg-gray-50 active:bg-gray-100
         transition-all duration-200 border border-gray-200"
     >

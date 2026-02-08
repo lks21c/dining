@@ -83,8 +83,18 @@ export default function PlaceCard({ place, order, reason, onClick }: PlaceCardPr
             </p>
           )}
           {place.type === "parking" && (
-            <div className="flex gap-2 mt-1 text-xs text-gray-500">
-              <span>{place.hourlyRate.toLocaleString()}원/시</span>
+            <div className="flex flex-wrap gap-2 mt-1 text-xs text-gray-500">
+              {place.baseTime && place.baseRate ? (
+                <span>{place.baseTime}분 {place.baseRate.toLocaleString()}원</span>
+              ) : (
+                <span>{place.hourlyRate.toLocaleString()}원/시</span>
+              )}
+              {place.extraTime && place.extraRate && (
+                <>
+                  <span>·</span>
+                  <span>추가 {place.extraTime}분당 {place.extraRate.toLocaleString()}원</span>
+                </>
+              )}
               <span>·</span>
               <span>{place.operatingHours}</span>
             </div>

@@ -21,13 +21,20 @@ export async function GET(req: NextRequest) {
     lng: { gte: swLng, lte: neLng },
   };
 
-  const [restaurants, cafes, parkingLots] = await Promise.all([
+  const [restaurants, cafes, parkingLots, crawledPlaces] = await Promise.all([
     prisma.restaurant.findMany({ where: boundsWhere }),
     prisma.cafe.findMany({ where: boundsWhere }),
     prisma.parkingLot.findMany({ where: boundsWhere }),
+    prisma.crawledPlace.findMany({
+      where: {
+        lat: { gte: swLat, lte: neLat, not: null },
+        lng: { gte: swLng, lte: neLng, not: null },
+      },
+      include: { sources: true },
+    }),
   ]);
 
-  const places: Place[] = [
+  const seedPlaces: Place[] = [
     ...restaurants.map((r) => ({
       ...r,
       type: "restaurant" as const,
@@ -44,11 +51,46 @@ export async function GET(req: NextRequest) {
       lng: p.lng,
       type: "parking" as const,
       parkingType: p.type,
+      address: p.address ?? undefined,
       capacity: p.capacity,
       hourlyRate: p.hourlyRate,
+      baseTime: p.baseTime ?? undefined,
+      baseRate: p.baseRate ?? undefined,
+      extraTime: p.extraTime ?? undefined,
+      extraRate: p.extraRate ?? undefined,
+      freeNote: p.freeNote ?? undefined,
       operatingHours: p.operatingHours,
     })),
   ];
+
+  // Convert crawled places to Restaurant type
+  const crawledAsPlaces: Place[] = crawledPlaces
+    .filter((cp) => cp.lat != null && cp.lng != null)
+    .map((cp) => ({
+      id: cp.id,
+      name: cp.name,
+      description:
+        cp.description || cp.sources[0]?.snippet || "다이닝코드 크롤링",
+      lat: cp.lat!,
+      lng: cp.lng!,
+      type: "restaurant" as const,
+      category: cp.category || "맛집",
+      priceRange: cp.priceRange || "미정",
+      atmosphere: cp.atmosphere || "미정",
+      goodFor: cp.goodFor || "미정",
+      rating: cp.sources[0]?.rating || 0,
+      reviewCount: cp.sources[0]?.reviewCount || 0,
+      parkingAvailable: false,
+      nearbyParking: null,
+    }));
+
+  // Merge: seed + crawled, deduplicate by name
+  const seedNames = new Set(seedPlaces.map((p) => p.name.toLowerCase()));
+  const uniqueCrawled = crawledAsPlaces.filter(
+    (p) => !seedNames.has(p.name.toLowerCase())
+  );
+
+  const places: Place[] = [...seedPlaces, ...uniqueCrawled];
 
   return NextResponse.json(places);
 }

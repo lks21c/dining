@@ -44,13 +44,19 @@ model Cafe {
 }
 
 model ParkingLot {
-  id             String @id @default(cuid())
+  id             String  @id @default(cuid())
   name           String
   type           String
+  address        String?
   lat            Float
   lng            Float
   capacity       Int
   hourlyRate     Int
+  baseTime       Int?    // 기본 시간 (분) e.g. 30
+  baseRate       Int?    // 기본 요금 (원) e.g. 1000
+  extraTime      Int?    // 추가 단위 시간 (분) e.g. 5
+  extraRate      Int?    // 추가 단위 요금 (원) e.g. 250
+  freeNote       String? // 무료 주차 조건 메모
   description    String
   operatingHours String
 
@@ -92,4 +98,16 @@ model PlaceSource {
 
   @@unique([crawledPlaceId, source])
   @@index([source])
+}
+
+model Menu {
+  id        String   @id @default(cuid())
+  placeName String
+  menuName  String
+  price     String?
+  source    String   @default("diningcode")
+  crawledAt DateTime @default(now())
+
+  @@unique([placeName, menuName, source])
+  @@index([placeName])
 }

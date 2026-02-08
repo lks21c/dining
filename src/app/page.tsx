@@ -5,6 +5,7 @@ import NaverMap from "@/components/map/NaverMap";
 import PlaceMarker from "@/components/map/PlaceMarker";
 import RouteMarkers from "@/components/map/RouteMarkers";
 import SearchThisAreaButton from "@/components/map/SearchThisAreaButton";
+import CrawlThisAreaButton from "@/components/map/CrawlThisAreaButton";
 import PlaceList from "@/components/place/PlaceList";
 import PlaceDetail from "@/components/place/PlaceDetail";
 import SearchBar from "@/components/search/SearchBar";
@@ -14,6 +15,7 @@ import { useNaverMap } from "@/hooks/useNaverMap";
 import { useMapBounds } from "@/hooks/useMapBounds";
 import { usePlaces } from "@/hooks/usePlaces";
 import { useSearch } from "@/hooks/useSearch";
+import { useCrawl } from "@/hooks/useCrawl";
 import type { Place } from "@/types/place";
 
 export default function Home() {
@@ -29,7 +31,10 @@ export default function Home() {
     search,
     clearSearch,
   } = useSearch();
+  const { crawling, crawlResult, crawlError, crawlThisArea, setCrawlResult } =
+    useCrawl();
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const [crawlToast, setCrawlToast] = useState<string | null>(null);
 
   const handleSearch = useCallback(() => {
     search(query, bounds);
@@ -58,6 +63,10 @@ export default function Home() {
     setSelectedPlace(null);
   }, [clearSearch]);
 
+  const handleCrawl = useCallback(() => {
+    crawlThisArea(bounds);
+  }, [crawlThisArea, bounds]);
+
   // Move map to center when search returns a geocoded location
   useEffect(() => {
     if (map && searchResult?.center) {
@@ -66,6 +75,23 @@ export default function Home() {
       map.setZoom(15);
     }
   }, [map, searchResult]);
+
+  // Show toast and refetch when crawl completes
+  useEffect(() => {
+    if (crawlResult) {
+      if (crawlResult.count > 0) {
+        setCrawlToast(
+          `${crawlResult.areaName}에서 ${crawlResult.count}개의 새로운 맛집 발견!`
+        );
+        searchThisArea();
+      } else {
+        setCrawlToast(`${crawlResult.areaName}: 새로운 맛집이 없습니다.`);
+      }
+      setCrawlResult(null);
+      const timer = setTimeout(() => setCrawlToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [crawlResult, searchThisArea, setCrawlResult]);
 
   const showSuggestions = !query && !searchResult && isLoaded;
 
@@ -89,16 +115,33 @@ export default function Home() {
           onSelect={handleSuggestionSelect}
         />
 
-        <SearchThisAreaButton
-          visible={shouldSearch && !searchResult}
-          onClick={searchThisArea}
-        />
+        {/* Action buttons container */}
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
+          <SearchThisAreaButton
+            visible={shouldSearch && !searchResult}
+            onClick={searchThisArea}
+          />
+          <CrawlThisAreaButton
+            visible={isLoaded && !searchResult}
+            crawling={crawling}
+            onClick={handleCrawl}
+          />
+        </div>
 
         {/* Error toast */}
-        {error && (
+        {(error || crawlError) && (
           <div className="absolute bottom-4 left-4 right-4 z-30 md:left-auto md:right-4 md:w-80">
             <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg shadow-lg">
-              {error}
+              {error || crawlError}
+            </div>
+          </div>
+        )}
+
+        {/* Crawl success toast */}
+        {crawlToast && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30">
+            <div className="bg-orange-50 border border-orange-200 text-orange-800 text-sm px-4 py-3 rounded-lg shadow-lg whitespace-nowrap">
+              {crawlToast}
             </div>
           </div>
         )}

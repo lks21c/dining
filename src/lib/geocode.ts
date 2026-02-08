@@ -5,7 +5,7 @@ interface GeocodeResult {
 }
 
 /** Common Seoul landmarks for fast fallback */
-const LANDMARK_MAP: Record<string, GeocodeResult> = {
+export const LANDMARK_MAP: Record<string, GeocodeResult> = {
   용산구청: { lat: 37.5324, lng: 126.9906, address: "서울특별시 용산구 녹사평대로 150" },
   이태원: { lat: 37.5345, lng: 126.9945, address: "서울특별시 용산구 이태원동" },
   이태원역: { lat: 37.5345, lng: 126.9945, address: "서울특별시 용산구 이태원동" },
