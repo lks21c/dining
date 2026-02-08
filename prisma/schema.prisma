@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Restaurant {
+  id               String  @id @default(cuid())
+  name             String
+  category         String
+  description      String
+  lat              Float
+  lng              Float
+  priceRange       String
+  atmosphere       String
+  goodFor          String
+  rating           Float
+  reviewCount      Int
+  parkingAvailable Boolean @default(false)
+  nearbyParking    String?
+
+  @@index([lat, lng])
+}
+
+model Cafe {
+  id               String  @id @default(cuid())
+  name             String
+  specialty        String
+  description      String
+  lat              Float
+  lng              Float
+  priceRange       String
+  atmosphere       String
+  goodFor          String
+  rating           Float
+  reviewCount      Int
+  parkingAvailable Boolean @default(false)
+  nearbyParking    String?
+
+  @@index([lat, lng])
+}
+
+model ParkingLot {
+  id             String @id @default(cuid())
+  name           String
+  type           String
+  lat            Float
+  lng            Float
+  capacity       Int
+  hourlyRate     Int
+  description    String
+  operatingHours String
+
+  @@index([lat, lng])
+}
