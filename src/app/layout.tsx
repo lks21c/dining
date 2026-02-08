@@ -26,7 +26,7 @@ export default function RootLayout({
         {children}
         {naverClientId && (
           <Script
-            src={`https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${naverClientId}`}
+            src={`https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${naverClientId}`}
             strategy="afterInteractive"
           />
         )}
