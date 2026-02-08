@@ -60,4 +60,5 @@ export interface SearchResult {
   }[];
   routeSummary: string;
   places: Place[];
+  center?: { lat: number; lng: number; name: string };
 }

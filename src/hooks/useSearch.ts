@@ -11,15 +11,18 @@ export function useSearch() {
 
   const search = useCallback(
     async (searchQuery: string, bounds: Bounds | null) => {
-      if (!searchQuery.trim() || !bounds) return;
+      if (!searchQuery.trim()) return;
 
       setSearching(true);
       setError(null);
       try {
+        const body: { query: string; bounds?: Bounds } = { query: searchQuery };
+        if (bounds) body.bounds = bounds;
+
         const res = await fetch("/api/places/search", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: searchQuery, bounds }),
+          body: JSON.stringify(body),
         });
         if (!res.ok) {
           const msg = await res.text();

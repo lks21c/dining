@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import NaverMap from "@/components/map/NaverMap";
 import PlaceMarker from "@/components/map/PlaceMarker";
 import RouteMarkers from "@/components/map/RouteMarkers";
@@ -57,6 +57,15 @@ export default function Home() {
     clearSearch();
     setSelectedPlace(null);
   }, [clearSearch]);
+
+  // Move map to center when search returns a geocoded location
+  useEffect(() => {
+    if (map && searchResult?.center) {
+      const { lat, lng } = searchResult.center;
+      map.setCenter(new naver.maps.LatLng(lat, lng));
+      map.setZoom(15);
+    }
+  }, [map, searchResult]);
 
   const showSuggestions = !query && !searchResult && isLoaded;
 

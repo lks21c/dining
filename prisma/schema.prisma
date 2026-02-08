@@ -56,3 +56,40 @@ model ParkingLot {
 
   @@index([lat, lng])
 }
+
+model CrawledPlace {
+  id          String        @id @default(cuid())
+  name        String
+  category    String?
+  description String?
+  address     String?
+  lat         Float?
+  lng         Float?
+  phone       String?
+  priceRange  String?
+  atmosphere  String?
+  goodFor     String?
+  imageUrl    String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  sources     PlaceSource[]
+
+  @@index([lat, lng])
+  @@index([name])
+}
+
+model PlaceSource {
+  id             String       @id @default(cuid())
+  crawledPlaceId String
+  crawledPlace   CrawledPlace @relation(fields: [crawledPlaceId], references: [id], onDelete: Cascade)
+  source         String
+  sourceUrl      String?
+  rating         Float?
+  reviewCount    Int?
+  snippet        String?
+  metadata       String?
+  crawledAt      DateTime     @default(now())
+
+  @@unique([crawledPlaceId, source])
+  @@index([source])
+}
