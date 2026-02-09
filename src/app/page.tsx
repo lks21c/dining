@@ -1,26 +1,25 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import NaverMap from "@/components/map/NaverMap";
 import PlaceMarker from "@/components/map/PlaceMarker";
 import RouteMarkers from "@/components/map/RouteMarkers";
-import SearchThisAreaButton from "@/components/map/SearchThisAreaButton";
-import CrawlThisAreaButton from "@/components/map/CrawlThisAreaButton";
+import CrawlButton from "@/components/map/CrawlThisAreaButton";
 import PlaceList from "@/components/place/PlaceList";
 import PlaceDetail from "@/components/place/PlaceDetail";
 import SearchBar from "@/components/search/SearchBar";
 import SearchSuggestions from "@/components/search/SearchSuggestions";
 import BottomSheet from "@/components/ui/BottomSheet";
 import { useNaverMap } from "@/hooks/useNaverMap";
-import { useMapBounds } from "@/hooks/useMapBounds";
+import { useMapBounds, MIN_MARKER_ZOOM } from "@/hooks/useMapBounds";
 import { usePlaces } from "@/hooks/usePlaces";
 import { useSearch } from "@/hooks/useSearch";
 import { useCrawl } from "@/hooks/useCrawl";
-import type { Place } from "@/types/place";
+import type { Place, SearchResult } from "@/types/place";
 
 export default function Home() {
   const { map, isLoaded } = useNaverMap("naver-map");
-  const { bounds, shouldSearch, searchThisArea } = useMapBounds(map);
+  const { bounds, zoom, searchThisArea } = useMapBounds(map);
   const { places, allPlaces, loading, activeType, setActiveType } = usePlaces(bounds);
   const {
     query,
@@ -31,10 +30,35 @@ export default function Home() {
     search,
     clearSearch,
   } = useSearch();
-  const { crawling, crawlResult, crawlError, crawlThisArea, setCrawlResult } =
+  const { crawling, crawlResult, crawlError, crawl, setCrawlResult } =
     useCrawl();
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [crawlToast, setCrawlToast] = useState<string | null>(null);
+  const [activeCourse, setActiveCourse] = useState(0);
+
+  // Reset active course when search result changes
+  useEffect(() => {
+    setActiveCourse(0);
+  }, [searchResult]);
+
+  // Derive display result for RouteMarkers based on selected course
+  const displayResult: SearchResult | null = useMemo(() => {
+    if (!searchResult?.courses?.length) return searchResult;
+    const course = searchResult.courses[activeCourse];
+    if (!course) return searchResult;
+
+    const placeMap = new Map(searchResult.places.map((p) => [p.id, p]));
+    const coursePlaces = course.stops
+      .map((s) => placeMap.get(s.id))
+      .filter((p): p is Place => !!p);
+
+    return {
+      ...searchResult,
+      recommendations: course.stops,
+      routeSummary: course.routeSummary,
+      places: coursePlaces,
+    };
+  }, [searchResult, activeCourse]);
 
   const handleSearch = useCallback(() => {
     search(query, bounds);
@@ -61,11 +85,15 @@ export default function Home() {
   const handleClearSearch = useCallback(() => {
     clearSearch();
     setSelectedPlace(null);
+    setActiveCourse(0);
   }, [clearSearch]);
 
-  const handleCrawl = useCallback(() => {
-    crawlThisArea(bounds);
-  }, [crawlThisArea, bounds]);
+  const handleCrawl = useCallback(
+    (keyword: string) => {
+      crawl(keyword, bounds);
+    },
+    [crawl, bounds]
+  );
 
   // Move map to center when search returns a geocoded location
   useEffect(() => {
@@ -79,16 +107,22 @@ export default function Home() {
   // Show toast and refetch when crawl completes
   useEffect(() => {
     if (crawlResult) {
+      const parts: string[] = [];
       if (crawlResult.count > 0) {
-        setCrawlToast(
-          `${crawlResult.areaName}에서 ${crawlResult.count}개의 새로운 맛집 발견!`
-        );
+        parts.push(`맛집 ${crawlResult.count}개`);
+      }
+      if (crawlResult.parkingAdded > 0) {
+        parts.push(`주차장 ${crawlResult.parkingAdded}개`);
+      }
+
+      if (parts.length > 0) {
+        setCrawlToast(`"${crawlResult.keyword}" → ${parts.join(", ")} 추가!`);
         searchThisArea();
       } else {
-        setCrawlToast(`${crawlResult.areaName}: 새로운 맛집이 없습니다.`);
+        setCrawlToast(`"${crawlResult.keyword}": 새로운 결과가 없습니다.`);
       }
       setCrawlResult(null);
-      const timer = setTimeout(() => setCrawlToast(null), 3000);
+      const timer = setTimeout(() => setCrawlToast(null), 4000);
       return () => clearTimeout(timer);
     }
   }, [crawlResult, searchThisArea, setCrawlResult]);
@@ -115,18 +149,21 @@ export default function Home() {
           onSelect={handleSuggestionSelect}
         />
 
-        {/* Action buttons container */}
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
-          <SearchThisAreaButton
-            visible={shouldSearch && !searchResult}
-            onClick={searchThisArea}
-          />
-          <CrawlThisAreaButton
-            visible={isLoaded && !searchResult}
-            crawling={crawling}
-            onClick={handleCrawl}
-          />
-        </div>
+        {/* Action buttons container — only when zoomed in */}
+        {isLoaded && !searchResult && zoom >= MIN_MARKER_ZOOM && (
+          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20">
+            <CrawlButton crawling={crawling} onCrawl={handleCrawl} />
+          </div>
+        )}
+
+        {/* Zoom hint — when zoomed out */}
+        {isLoaded && !searchResult && zoom < MIN_MARKER_ZOOM && (
+          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20">
+            <div className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow-md text-sm text-gray-500 whitespace-nowrap">
+              지도를 확대하면 맛집이 표시됩니다
+            </div>
+          </div>
+        )}
 
         {/* Error toast */}
         {(error || crawlError) && (
@@ -160,9 +197,9 @@ export default function Home() {
           </>
         )}
 
-        {/* Route markers (search mode) */}
-        {map && searchResult && searchResult.recommendations.length > 0 && (
-          <RouteMarkers map={map} searchResult={searchResult} />
+        {/* Route markers (search mode — shows selected course) */}
+        {map && displayResult && displayResult.recommendations.length > 0 && (
+          <RouteMarkers map={map} searchResult={displayResult} />
         )}
 
         {/* Loading overlay */}
@@ -177,7 +214,7 @@ export default function Home() {
       </div>
 
       {/* Side panel / Bottom sheet */}
-      <BottomSheet>
+      <BottomSheet expandOnContent={!!searchResult}>
         {selectedPlace ? (
           <PlaceDetail
             place={selectedPlace}
@@ -191,6 +228,8 @@ export default function Home() {
             searchResult={searchResult}
             onPlaceClick={handlePlaceClick}
             loading={loading || searching}
+            activeCourse={activeCourse}
+            onCourseSelect={setActiveCourse}
           />
         )}
       </BottomSheet>

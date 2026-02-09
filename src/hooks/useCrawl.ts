@@ -5,7 +5,8 @@ import type { Bounds } from "@/types/place";
 
 interface CrawlResult {
   count: number;
-  areaName: string;
+  parkingAdded: number;
+  keyword: string;
 }
 
 export function useCrawl() {
@@ -14,8 +15,8 @@ export function useCrawl() {
   const [crawlError, setCrawlError] = useState<string | null>(null);
   const cooldownRef = useRef(false);
 
-  const crawlThisArea = useCallback(async (bounds: Bounds | null) => {
-    if (!bounds || crawling || cooldownRef.current) return;
+  const crawl = useCallback(async (keyword: string, bounds: Bounds | null) => {
+    if (!keyword.trim() || crawling || cooldownRef.current) return;
 
     setCrawling(true);
     setCrawlError(null);
@@ -25,7 +26,7 @@ export function useCrawl() {
       const res = await fetch("/api/places/crawl", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bounds }),
+        body: JSON.stringify({ keyword, bounds }),
       });
 
       if (!res.ok) {
@@ -50,5 +51,5 @@ export function useCrawl() {
     }
   }, [crawling]);
 
-  return { crawling, crawlResult, crawlError, crawlThisArea, setCrawlResult };
+  return { crawling, crawlResult, crawlError, crawl, setCrawlResult };
 }

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { extractLocation } from "@/lib/llm";
+import { extractLocation, getRecommendations } from "@/lib/llm";
 import { geocode } from "@/lib/geocode";
-import { searchGraph } from "@/lib/agents/graph";
+import { prisma } from "@/lib/prisma";
+import type { Place } from "@/types/place";
 
 const RADIUS_KM = 1.5;
 
@@ -49,31 +50,116 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 4. Invoke LangGraph multi-agent search
+  // 4. Fast path: query DB directly + call Gemini
   try {
-    const result = await searchGraph.invoke({
-      query,
-      searchTerms: "",
-      location: center || null,
-      bounds: searchBounds,
-      crawledPlaces: [],
-      agentErrors: [],
-      finalResult: null,
-    });
+    const boundsWhere = {
+      lat: { gte: searchBounds.swLat, lte: searchBounds.neLat },
+      lng: { gte: searchBounds.swLng, lte: searchBounds.neLng },
+    };
 
-    if (result.finalResult) {
-      return NextResponse.json(result.finalResult);
+    const [restaurants, cafes, parkingLots, crawledRecords] = await Promise.all([
+      prisma.restaurant.findMany({ where: boundsWhere }),
+      prisma.cafe.findMany({ where: boundsWhere }),
+      prisma.parkingLot.findMany({ where: boundsWhere }),
+      prisma.crawledPlace.findMany({
+        where: {
+          lat: { gte: searchBounds.swLat, lte: searchBounds.neLat },
+          lng: { gte: searchBounds.swLng, lte: searchBounds.neLng },
+        },
+        include: { sources: true },
+      }),
+    ]);
+
+    // Build Place[]
+    const seedPlaces: Place[] = [
+      ...restaurants.map((r) => ({ ...r, type: "restaurant" as const })),
+      ...cafes.map((c) => ({ ...c, type: "cafe" as const })),
+      ...parkingLots.map((p) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        lat: p.lat,
+        lng: p.lng,
+        type: "parking" as const,
+        parkingType: p.type,
+        address: p.address ?? undefined,
+        capacity: p.capacity,
+        hourlyRate: p.hourlyRate,
+        baseTime: p.baseTime ?? undefined,
+        baseRate: p.baseRate ?? undefined,
+        extraTime: p.extraTime ?? undefined,
+        extraRate: p.extraRate ?? undefined,
+        freeNote: p.freeNote ?? undefined,
+        operatingHours: p.operatingHours,
+      })),
+    ];
+
+    // Add crawled places (avoid duplicates with seed data)
+    const seedNames = new Set(seedPlaces.map((p) => p.name.toLowerCase()));
+    const crawledAsPlaces: Place[] = crawledRecords
+      .filter((cp) => cp.lat && cp.lng && !seedNames.has(cp.name.toLowerCase()))
+      .map((cp) => ({
+        id: cp.id,
+        name: cp.name,
+        description: cp.description || `${cp.sources.map((s) => s.source).join(", ")}에서 추천`,
+        lat: cp.lat!,
+        lng: cp.lng!,
+        type: "restaurant" as const,
+        category: cp.category || "맛집",
+        priceRange: cp.priceRange || "미정",
+        atmosphere: cp.atmosphere || "미정",
+        goodFor: cp.goodFor || "미정",
+        rating: cp.sources[0]?.rating || 0,
+        reviewCount: cp.sources[0]?.reviewCount || 0,
+        parkingAvailable: false,
+        nearbyParking: null,
+      }));
+
+    const allPlaces = [...seedPlaces, ...crawledAsPlaces];
+
+    if (allPlaces.length === 0) {
+      return NextResponse.json({
+        summary: "이 지역에 등록된 장소가 없습니다.",
+        persona: "",
+        courses: [],
+        recommendations: [],
+        routeSummary: "",
+        places: [],
+        center,
+      });
     }
 
+    // 5. Call Gemini for course-based recommendations
+    const anchor = center || undefined;
+    const llmResult = await getRecommendations(query, allPlaces, anchor);
+
+    // Collect all referenced place IDs across all courses
+    const allPlaceIds = new Set<string>();
+    for (const course of llmResult.courses) {
+      for (const stop of course.stops) {
+        allPlaceIds.add(stop.id);
+      }
+    }
+
+    const placeMap = new Map(allPlaces.map((p) => [p.id, p]));
+    const referencedPlaces = [...allPlaceIds]
+      .map((id) => placeMap.get(id))
+      .filter((p): p is Place => !!p);
+
+    // Default to first course for RouteMarkers
+    const firstCourse = llmResult.courses[0];
+
     return NextResponse.json({
-      persona: "",
-      recommendations: [],
-      routeSummary: "검색 결과가 없습니다.",
-      places: [],
+      summary: llmResult.summary,
+      persona: llmResult.persona,
+      courses: llmResult.courses,
+      recommendations: firstCourse?.stops || [],
+      routeSummary: firstCourse?.routeSummary || "",
+      places: referencedPlaces,
       center,
     });
   } catch (error) {
-    console.error("Search graph error:", error);
+    console.error("Search error:", error);
     return NextResponse.json(
       { error: "검색 처리 중 오류가 발생했습니다." },
       { status: 500 }

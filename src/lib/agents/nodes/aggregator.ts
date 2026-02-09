@@ -120,28 +120,42 @@ export async function aggregator(
   if (allPlaces.length === 0) {
     return {
       finalResult: {
+        summary: "이 지역에 등록된 장소가 없습니다.",
         persona: "",
+        courses: [],
         recommendations: [],
-        routeSummary: "이 지역에 등록된 장소가 없습니다.",
+        routeSummary: "",
         places: [],
         center: location || undefined,
       },
     };
   }
 
-  // 8. Get LLM recommendations
+  // 8. Get LLM recommendations (course-based)
   const anchor = location || undefined;
   const llmResult = await getRecommendations(query, allPlaces, anchor);
 
+  // Collect all place IDs from all courses
+  const allPlaceIds = new Set<string>();
+  for (const course of llmResult.courses) {
+    for (const stop of course.stops) {
+      allPlaceIds.add(stop.id);
+    }
+  }
+
   const placeMap = new Map(allPlaces.map((p) => [p.id, p]));
-  const recommendedPlaces = llmResult.recommendations
-    .map((rec) => placeMap.get(rec.id))
+  const referencedPlaces = [...allPlaceIds]
+    .map((id) => placeMap.get(id))
     .filter((p): p is Place => !!p);
+
+  const firstCourse = llmResult.courses[0];
 
   return {
     finalResult: {
       ...llmResult,
-      places: recommendedPlaces,
+      recommendations: firstCourse?.stops || [],
+      routeSummary: firstCourse?.routeSummary || "",
+      places: referencedPlaces,
       center: location || undefined,
     },
   };

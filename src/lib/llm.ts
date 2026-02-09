@@ -1,5 +1,5 @@
 import { openrouter, MODEL, extractJson } from "@/lib/openrouter";
-import type { Place, PlaceType } from "@/types/place";
+import type { Place, PlaceType, Course, CourseStop } from "@/types/place";
 
 function compressPlace(
   place: Place,
@@ -46,53 +46,86 @@ function buildSystemPrompt(anchor?: { lat: number; lng: number; name: string }):
 - 걸어서 이동 가능한 범위(도보 15분, ~1km)를 우선하세요.`
     : "";
 
-  return `당신은 한국 외출 플래너 AI 어시스턴트입니다.
-사용자의 자연어 요청을 분석하여 맛집, 카페, 주차장을 통합 추천하고 최적 동선을 제안합니다.
+  return `당신은 한국 맛집 추천 전문 AI입니다.
+사용자의 자연어 요청을 분석하여 여러 코스를 조합해서 추천합니다.
 ${anchorInstruction}
 
 역할:
 1. 사용자 맥락 파싱 (누구와, 목적, 분위기, 예산, 위치)
-2. 사용자의 모든 조건을 AND로 결합하여 필터링:
-   - 위치 조건: 주어진 장소 목록은 이미 위치 필터링됨
-   - 대상 조건: 누구와 가는지에 맞는 분위기/가격대 선택
-   - 목적 조건: 차로 이동 → 주차장 필수, 데이트 → 분위기 좋은 곳
-   - 장소타입 조건: 맛집+카페 요청 시 둘 다 포함
-3. 각 조건을 모두 만족하는 장소만 추천 (조건에 맞지 않으면 추천하지 않음)
-4. 방문 순서 제안 (주차 → 식사 → 카페 등)
-5. 각 장소의 추천 이유에 어떤 조건을 충족하는지 명시
+2. 사용자의 모든 조건을 AND로 결합하여 필터링
+3. 맛집+카페/디저트 조합으로 여러 코스를 구성
+4. 각 코스마다 방문 순서 제안
 
 응답은 반드시 다음 JSON 형식으로:
 {
-  "persona": "사용자 맥락 요약 (예: 40대 부부, 용산구청 근처, 차량 이동)",
-  "recommendations": [
-    { "order": 1, "id": "P1", "type": "parking", "reason": "추천 이유 (어떤 조건 충족)" },
-    { "order": 2, "id": "R3", "type": "restaurant", "reason": "추천 이유" },
-    { "order": 3, "id": "C2", "type": "cafe", "reason": "추천 이유" }
-  ],
-  "routeSummary": "주차 → 도보 5분 → 이탈리안 디너 → 도보 3분 → 카페"
+  "summary": "(아래 작성 가이드 참조 — 풍부하고 상세하게 작성할 것)",
+  "persona": "사용자 맥락 요약",
+  "courses": [
+    {
+      "courseNumber": 1,
+      "title": "맛집명 + 카페명 코스",
+      "stops": [
+        { "order": 1, "id": "P1", "type": "parking", "reason": "추천 이유" },
+        { "order": 2, "id": "R3", "type": "restaurant", "reason": "추천 이유" },
+        { "order": 3, "id": "C2", "type": "cafe", "reason": "추천 이유" }
+      ],
+      "routeSummary": "주차장 → 도보5분 → 맛집 → 도보3분 → 카페"
+    }
+  ]
 }
 
+★ 코스 구성 규칙 (가장 중요):
+- 코스는 2~4개 생성 (데이터가 적으면 최소 1개)
+- 각 코스의 기본 구성: 맛집 1개 + 카페/디저트 1개
+- 디저트 전문점, 테이크아웃, 베이커리 등이 있으면 추가 stop으로 넣어도 됨
+- 차로 이동하는 경우("차대고", "주차") 각 코스에 주차장 1개를 첫 번째로 배치 (같은 주차장 공유 가능)
+- 각 코스는 서로 다른 특색 (예: 고기코스, 해산물코스, 이탈리안코스 등)
+- title은 핵심 장소명 조합 (예: "육몽 + 콩카페", "바토스 + 오띠젤리")
+- 같은 카페가 다른 맛집과 조합되어도 OK
+- 같은 맛집이 다른 카페와 조합되어도 OK
+
+★ summary 작성 가이드:
+summary는 사용자에게 직접 보여주는 메인 텍스트입니다:
+
+1) 도입부 (2-3문장): 해당 지역의 특성, 주차 상황, 접근성 등 유용한 정보
+2) 추천 가능한 맛집/카페 소개 (번호 매겨서):
+   - **장소명** (볼드)
+   - 어떤 곳인지 2-3문장 상세 설명 (대표 메뉴, 맛의 특징, 분위기 등)
+   - 특징: 한줄 요약
+   - 평점: 데이터에 있으면 표기
+3) 마무리 팁 (1-2문장): 주차 팁, 예약 팁, 방문 시간 팁 등
+
 규칙:
-- 추천은 3~5개 장소
-- 차로 이동하는 경우 주차장을 첫 번째로 추천
 - type은 반드시 "restaurant", "cafe", "parking" 중 하나
 - id는 입력된 장소 목록의 ID를 그대로 사용
 - JSON만 응답, 다른 텍스트 금지
+- summary 안에서 줄바꿈은 \\n 사용
 - 조건에 맞는 장소가 부족하면 가장 가까운 대안을 추천하되, 이유에 "대안" 명시`;
 }
 
-interface LLMRecommendation {
+/* ---------- LLM response types ---------- */
+
+interface LLMCourseStop {
   order: number;
   id: string;
   type: PlaceType;
   reason: string;
 }
 
-interface LLMResponse {
-  persona: string;
-  recommendations: LLMRecommendation[];
+interface LLMCourse {
+  courseNumber: number;
+  title: string;
+  stops: LLMCourseStop[];
   routeSummary: string;
 }
+
+interface LLMResponse {
+  summary: string;
+  persona: string;
+  courses: LLMCourse[];
+}
+
+/* ---------- Public API ---------- */
 
 export async function extractLocation(query: string): Promise<string | null> {
   try {
@@ -128,11 +161,17 @@ export async function extractLocation(query: string): Promise<string | null> {
   }
 }
 
+export interface GetRecommendationsResult {
+  summary: string;
+  persona: string;
+  courses: Course[];
+}
+
 export async function getRecommendations(
   query: string,
   places: Place[],
   anchor?: { lat: number; lng: number; name: string }
-): Promise<LLMResponse> {
+): Promise<GetRecommendationsResult> {
   const idMap = new Map<string, Place>();
   const compressed = places.map((p, i) => {
     const prefix =
@@ -150,7 +189,7 @@ ${compressed.join("\n")}
   try {
     const completion = await openrouter.chat.completions.create({
       model: MODEL,
-      temperature: 0.3,
+      temperature: 0.5,
       max_tokens: 16000,
       messages: [
         { role: "system", content: buildSystemPrompt(anchor) },
@@ -163,22 +202,33 @@ ${compressed.join("\n")}
 
     const parsed: LLMResponse = JSON.parse(extractJson(content));
 
-    // Map compressed IDs back to real IDs
-    parsed.recommendations = parsed.recommendations
-      .filter((rec) => idMap.has(rec.id))
-      .map((rec) => {
-        const place = idMap.get(rec.id)!;
-        return { ...rec, id: place.id, type: place.type };
-      });
+    // Map compressed IDs back to real IDs in every course
+    const courses: Course[] = parsed.courses.map((c) => ({
+      courseNumber: c.courseNumber,
+      title: c.title,
+      routeSummary: c.routeSummary,
+      stops: c.stops
+        .filter((s) => idMap.has(s.id))
+        .map((s) => {
+          const place = idMap.get(s.id)!;
+          return { ...s, id: place.id, type: place.type } as CourseStop;
+        }),
+    }));
 
-    return parsed;
+    return {
+      summary: parsed.summary,
+      persona: parsed.persona,
+      courses,
+    };
   } catch (error) {
     console.error("LLM error, falling back to keyword search:", error);
     return keywordFallback(query, places);
   }
 }
 
-function keywordFallback(query: string, places: Place[]): LLMResponse {
+/* ---------- Fallback ---------- */
+
+function keywordFallback(query: string, places: Place[]): GetRecommendationsResult {
   const keywords = query.toLowerCase().split(/\s+/);
 
   const scored = places.map((place) => {
@@ -207,44 +257,59 @@ function keywordFallback(query: string, places: Place[]): LLMResponse {
 
   scored.sort((a, b) => b.score - a.score);
 
-  const top = scored.slice(0, 5).filter((s) => s.score > 0);
-  if (top.length === 0) {
-    const sorted = [...places]
-      .filter((p) => p.type !== "parking")
-      .sort((a, b) => {
-        const aRating = "rating" in a ? a.rating : 0;
-        const bRating = "rating" in b ? b.rating : 0;
-        return bRating - aRating;
-      })
-      .slice(0, 3);
+  const restaurants = scored.filter((s) => s.place.type === "restaurant" && s.score > 0).slice(0, 3);
+  const cafes = scored.filter((s) => s.place.type === "cafe" && s.score > 0).slice(0, 2);
 
+  // If no keyword matches, use top rated
+  const fallbackRestaurants = restaurants.length > 0
+    ? restaurants
+    : scored.filter((s) => s.place.type === "restaurant").slice(0, 2);
+  const fallbackCafes = cafes.length > 0
+    ? cafes
+    : scored.filter((s) => s.place.type === "cafe").slice(0, 1);
+
+  // Build courses: pair each restaurant with a cafe
+  const courses: Course[] = fallbackRestaurants.map((r, i) => {
+    const cafe = fallbackCafes[i % fallbackCafes.length];
+    const stops: CourseStop[] = [
+      { order: 1, id: r.place.id, type: r.place.type, reason: `인기 맛집` },
+    ];
+    if (cafe) {
+      stops.push({
+        order: 2,
+        id: cafe.place.id,
+        type: cafe.place.type,
+        reason: `인기 카페`,
+      });
+    }
+    const title = cafe
+      ? `${r.place.name} + ${cafe.place.name}`
+      : r.place.name;
     return {
-      persona: "일반 추천",
-      recommendations: sorted.map((p, i) => ({
-        order: i + 1,
-        id: p.id,
-        type: p.type,
-        reason: `인기 ${p.type === "restaurant" ? "맛집" : "카페"}`,
-      })),
-      routeSummary: sorted.map((p) => p.name).join(" → "),
+      courseNumber: i + 1,
+      title,
+      stops,
+      routeSummary: stops.map((s) => {
+        const p = s.id === r.place.id ? r.place : cafe?.place;
+        return p?.name || "";
+      }).join(" → "),
     };
-  }
+  });
 
+  const allNames = [...fallbackRestaurants.map((r) => r.place.name), ...fallbackCafes.map((c) => c.place.name)];
   return {
+    summary: `"${query}" 검색 결과입니다. ${allNames.join(", ")} 등을 조합한 코스를 추천드려요!`,
     persona: query,
-    recommendations: top.map((s, i) => ({
-      order: i + 1,
-      id: s.place.id,
-      type: s.place.type,
-      reason: `키워드 매칭: ${keywords
-        .filter((kw) => {
-          const text = [s.place.name, s.place.description]
-            .join(" ")
-            .toLowerCase();
-          return text.includes(kw);
-        })
-        .join(", ")}`,
-    })),
-    routeSummary: top.map((s) => s.place.name).join(" → "),
+    courses: courses.length > 0 ? courses : [{
+      courseNumber: 1,
+      title: "추천 코스",
+      stops: scored.slice(0, 3).map((s, i) => ({
+        order: i + 1,
+        id: s.place.id,
+        type: s.place.type,
+        reason: "키워드 매칭",
+      })),
+      routeSummary: scored.slice(0, 3).map((s) => s.place.name).join(" → "),
+    }],
   };
 }

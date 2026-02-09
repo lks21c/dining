@@ -19,9 +19,10 @@ interface PlaceCardProps {
   order?: number;
   reason?: string;
   onClick?: (place: Place) => void;
+  expanded?: boolean;
 }
 
-export default function PlaceCard({ place, order, reason, onClick }: PlaceCardProps) {
+export default function PlaceCard({ place, order, reason, onClick, expanded }: PlaceCardProps) {
   const rating =
     place.type !== "parking" && "rating" in place ? place.rating : null;
   const priceRange =
@@ -74,11 +75,11 @@ export default function PlaceCard({ place, order, reason, onClick }: PlaceCardPr
             )}
             {priceRange && <span>{priceRange}</span>}
           </div>
-          <p className="text-xs text-gray-600 line-clamp-2">
+          <p className={`text-xs text-gray-600 ${expanded ? "" : "line-clamp-2"}`}>
             {place.description}
           </p>
           {reason && (
-            <p className="text-xs text-indigo-600 mt-1 font-medium">
+            <p className="text-xs text-indigo-600 mt-1.5 font-medium leading-relaxed">
               💡 {reason}
             </p>
           )}

@@ -56,14 +56,26 @@ export interface Bounds {
   neLng: number;
 }
 
+export interface CourseStop {
+  order: number;
+  id: string;
+  type: PlaceType;
+  reason: string;
+}
+
+export interface Course {
+  courseNumber: number;
+  title: string;
+  stops: CourseStop[];
+  routeSummary: string;
+}
+
 export interface SearchResult {
+  summary: string;
   persona: string;
-  recommendations: {
-    order: number;
-    id: string;
-    type: PlaceType;
-    reason: string;
-  }[];
+  courses: Course[];
+  /** Derived from selected course — used by RouteMarkers */
+  recommendations: CourseStop[];
   routeSummary: string;
   places: Place[];
   center?: { lat: number; lng: number; name: string };

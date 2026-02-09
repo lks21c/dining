@@ -29,7 +29,11 @@ export function usePlaces(bounds: Bounds | null) {
   }, []);
 
   useEffect(() => {
-    if (bounds) fetchPlaces(bounds);
+    if (bounds) {
+      fetchPlaces(bounds);
+    } else {
+      setPlaces([]);
+    }
   }, [bounds, fetchPlaces]);
 
   const filteredPlaces =

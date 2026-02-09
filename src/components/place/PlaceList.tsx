@@ -1,6 +1,7 @@
 "use client";
 
-import type { Place, PlaceType, SearchResult } from "@/types/place";
+import { Fragment } from "react";
+import type { Place, PlaceType, SearchResult, Course } from "@/types/place";
 import PlaceCard from "./PlaceCard";
 
 const TABS: { label: string; value: PlaceType | "all" }[] = [
@@ -10,6 +11,37 @@ const TABS: { label: string; value: PlaceType | "all" }[] = [
   { label: "🅿️ 주차", value: "parking" },
 ];
 
+const COURSE_COLORS = [
+  { bg: "bg-indigo-50", border: "border-indigo-200", text: "text-indigo-700", badge: "bg-indigo-600" },
+  { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", badge: "bg-emerald-600" },
+  { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", badge: "bg-amber-600" },
+  { bg: "bg-rose-50", border: "border-rose-200", text: "text-rose-700", badge: "bg-rose-600" },
+];
+
+/** Render markdown-like summary: **bold** and newlines */
+function SummaryText({ text }: { text: string }) {
+  const lines = text.split("\n");
+  return (
+    <>
+      {lines.map((line, li) => (
+        <Fragment key={li}>
+          {li > 0 && <br />}
+          {line.split(/(\*\*[^*]+\*\*)/).map((seg, si) => {
+            if (seg.startsWith("**") && seg.endsWith("**")) {
+              return (
+                <strong key={si} className="text-gray-900 font-semibold">
+                  {seg.slice(2, -2)}
+                </strong>
+              );
+            }
+            return <Fragment key={si}>{seg}</Fragment>;
+          })}
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
 interface PlaceListProps {
   places: Place[];
   activeType: PlaceType | "all";
@@ -17,6 +49,8 @@ interface PlaceListProps {
   searchResult: SearchResult | null;
   onPlaceClick?: (place: Place) => void;
   loading?: boolean;
+  activeCourse: number;
+  onCourseSelect: (index: number) => void;
 }
 
 export default function PlaceList({
@@ -26,45 +60,15 @@ export default function PlaceList({
   searchResult,
   onPlaceClick,
   loading,
+  activeCourse,
+  onCourseSelect,
 }: PlaceListProps) {
-  const isSearchMode = searchResult && searchResult.recommendations.length > 0;
+  const hasCourses = searchResult && searchResult.courses && searchResult.courses.length > 0;
 
   return (
     <div className="flex flex-col h-full">
-      {/* Search result header with AI response */}
-      {isSearchMode && (
-        <div className="px-4 py-3 bg-indigo-50 border-b border-indigo-100">
-          <p className="text-sm font-medium text-indigo-900">
-            🎯 {searchResult.persona}
-          </p>
-          <div className="mt-2 p-3 bg-white rounded-lg border border-indigo-100">
-            <p className="text-xs font-semibold text-gray-700 mb-1.5">
-              📍 추천 동선
-            </p>
-            <p className="text-xs text-indigo-700 font-medium leading-relaxed">
-              {searchResult.routeSummary}
-            </p>
-            <div className="mt-2 pt-2 border-t border-gray-100 space-y-1.5">
-              {searchResult.recommendations.map((rec) => {
-                const place = searchResult.places.find((p) => p.id === rec.id);
-                const emoji = rec.type === "parking" ? "🅿️" : rec.type === "cafe" ? "☕" : "🍽️";
-                return (
-                  <div key={rec.id} className="text-xs text-gray-600 leading-relaxed">
-                    <span className="font-semibold text-gray-800">
-                      {emoji} {rec.order}. {place?.name || ""}
-                    </span>
-                    <span className="mx-1">—</span>
-                    <span>{rec.reason}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Type tabs - only show when not in search mode */}
-      {!isSearchMode && (
+      {!hasCourses && (
         <div className="flex gap-1 px-4 py-2 border-b border-gray-100 overflow-x-auto">
           {TABS.map((tab) => (
             <button
@@ -83,10 +87,10 @@ export default function PlaceList({
         </div>
       )}
 
-      {/* Place list */}
-      <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1">
+      {/* Content area */}
+      <div className="flex-1 overflow-y-auto">
         {loading ? (
-          <div className="space-y-3 p-2">
+          <div className="space-y-3 p-4">
             {[...Array(5)].map((_, i) => (
               <div key={i} className="animate-pulse">
                 <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
@@ -95,24 +99,86 @@ export default function PlaceList({
               </div>
             ))}
           </div>
-        ) : isSearchMode ? (
-          searchResult.recommendations.map((rec) => {
-            const place = searchResult.places.find((p) => p.id === rec.id);
-            if (!place) return null;
-            return (
-              <PlaceCard
-                key={rec.id}
-                place={place}
-                order={rec.order}
-                reason={rec.reason}
-                onClick={onPlaceClick}
-              />
-            );
-          })
+        ) : hasCourses ? (
+          <div>
+            {/* AI summary */}
+            {searchResult.summary && (
+              <div className="px-4 py-4 border-b border-gray-100">
+                <div className="flex items-start gap-2.5">
+                  <div className="flex-shrink-0 w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center mt-0.5">
+                    <span className="text-white text-xs font-bold">AI</span>
+                  </div>
+                  <div className="text-sm text-gray-700 leading-relaxed">
+                    <SummaryText text={searchResult.summary} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Course tabs */}
+            <div className="flex gap-1.5 px-4 py-3 border-b border-gray-100 overflow-x-auto">
+              {searchResult.courses.map((course, ci) => {
+                const color = COURSE_COLORS[ci % COURSE_COLORS.length];
+                const isActive = activeCourse === ci;
+                return (
+                  <button
+                    key={course.courseNumber}
+                    onClick={() => onCourseSelect(ci)}
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors
+                      ${isActive
+                        ? `${color.badge} text-white`
+                        : `${color.bg} ${color.text} ${color.border} border`
+                      }`}
+                  >
+                    코스 {course.courseNumber}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Active course detail */}
+            {searchResult.courses.map((course, ci) => {
+              if (ci !== activeCourse) return null;
+              const color = COURSE_COLORS[ci % COURSE_COLORS.length];
+              return (
+                <div key={course.courseNumber}>
+                  {/* Course header */}
+                  <div className={`mx-3 mt-3 px-3 py-2.5 rounded-lg ${color.bg} ${color.border} border`}>
+                    <p className={`text-sm font-semibold ${color.text}`}>
+                      {course.title}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {course.routeSummary}
+                    </p>
+                  </div>
+
+                  {/* Course stops as cards */}
+                  <div className="px-2 py-2 space-y-1.5">
+                    {course.stops.map((stop) => {
+                      const place = searchResult.places.find((p) => p.id === stop.id);
+                      if (!place) return null;
+                      return (
+                        <PlaceCard
+                          key={`${course.courseNumber}-${stop.id}`}
+                          place={place}
+                          order={stop.order}
+                          reason={stop.reason}
+                          onClick={onPlaceClick}
+                          expanded
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : places.length > 0 ? (
-          places.map((place) => (
-            <PlaceCard key={place.id} place={place} onClick={onPlaceClick} />
-          ))
+          <div className="px-2 py-2 space-y-1">
+            {places.map((place) => (
+              <PlaceCard key={place.id} place={place} onClick={onPlaceClick} />
+            ))}
+          </div>
         ) : (
           <div className="text-center py-8 text-gray-400 text-sm">
             이 지역에 등록된 장소가 없습니다

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, type ReactNode } from "react";
+import { useState, useRef, useCallback, useEffect, type ReactNode } from "react";
 
 const SNAP_POINTS = {
   closed: 60,
@@ -10,13 +10,21 @@ const SNAP_POINTS = {
 
 interface BottomSheetProps {
   children: ReactNode;
+  expandOnContent?: boolean;
 }
 
-export default function BottomSheet({ children }: BottomSheetProps) {
+export default function BottomSheet({ children, expandOnContent }: BottomSheetProps) {
   const [heightPercent, setHeightPercent] = useState(SNAP_POINTS.half);
   const dragging = useRef(false);
   const startY = useRef(0);
   const startHeight = useRef(0);
+
+  // Auto-expand when search results arrive
+  useEffect(() => {
+    if (expandOnContent) {
+      setHeightPercent(SNAP_POINTS.full);
+    }
+  }, [expandOnContent]);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     dragging.current = true;

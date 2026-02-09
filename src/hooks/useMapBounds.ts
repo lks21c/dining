@@ -3,11 +3,13 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import type { Bounds } from "@/types/place";
 
+/** Minimum zoom level to show place markers (neighborhood level) */
+export const MIN_MARKER_ZOOM = 15;
+
 export function useMapBounds(map: naver.maps.Map | null) {
   const [bounds, setBounds] = useState<Bounds | null>(null);
-  const [shouldSearch, setShouldSearch] = useState(false);
+  const [zoom, setZoom] = useState(14);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const initialLoadRef = useRef(true);
 
   const getBoundsFromMap = useCallback((mapInstance: naver.maps.Map): Bounds => {
     const b = mapInstance.getBounds();
@@ -24,19 +26,23 @@ export function useMapBounds(map: naver.maps.Map | null) {
   useEffect(() => {
     if (!map) return;
 
-    // Initial bounds
-    const initialBounds = getBoundsFromMap(map);
-    setBounds(initialBounds);
-    initialLoadRef.current = false;
+    // Initial check
+    const initialZoom = map.getZoom();
+    setZoom(initialZoom);
+    if (initialZoom >= MIN_MARKER_ZOOM) {
+      setBounds(getBoundsFromMap(map));
+    }
 
+    // Auto-update on idle (pan/zoom)
     const listener = naver.maps.Event.addListener(map, "idle", () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
-        if (initialLoadRef.current) {
-          initialLoadRef.current = false;
+        const currentZoom = map.getZoom();
+        setZoom(currentZoom);
+        if (currentZoom >= MIN_MARKER_ZOOM) {
           setBounds(getBoundsFromMap(map));
         } else {
-          setShouldSearch(true);
+          setBounds(null); // zoomed out → clear places
         }
       }, 300);
     });
@@ -47,11 +53,11 @@ export function useMapBounds(map: naver.maps.Map | null) {
     };
   }, [map, getBoundsFromMap]);
 
+  /** Manual refresh (e.g. after crawl) */
   const searchThisArea = useCallback(() => {
     if (!map) return;
     setBounds(getBoundsFromMap(map));
-    setShouldSearch(false);
   }, [map, getBoundsFromMap]);
 
-  return { bounds, shouldSearch, searchThisArea };
+  return { bounds, zoom, searchThisArea };
 }
