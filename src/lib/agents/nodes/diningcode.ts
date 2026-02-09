@@ -3,6 +3,7 @@ import { fetchHtml, parseHtml } from "../utils/scraper";
 
 /**
  * Crawl DiningCode for a single search term and return raw place data.
+ * Uses JSON-LD schema embedded in list pages for reliable extraction.
  */
 export async function crawlDiningCode(
   searchTerm: string
@@ -14,41 +15,30 @@ export async function crawlDiningCode(
 
   const places: RawCrawledPlace[] = [];
 
-  $(".dc-restaurant-card, .restaurant-item, .PoiBlockCardStyle, li.InfoArea").each(
-    (_, el) => {
-      const name =
-        $(el)
-          .find(".title, .Restaurant-name, h2, .InfoHeader a")
-          .first()
-          .text()
-          .trim() || "";
-      const category =
-        $(el).find(".category, .Cuisine").first().text().trim() || undefined;
-      const address =
-        $(el).find(".address, .Addr").first().text().trim() || undefined;
-      const ratingText =
-        $(el).find(".rating, .Score, .point").first().text().trim();
-      const rating = ratingText ? parseFloat(ratingText) : undefined;
+  // Extract from JSON-LD schema (reliable structure)
+  $('script[type="application/ld+json"]').each((_, el) => {
+    try {
+      const data = JSON.parse($(el).html() || "");
+      const items = data.itemListElement;
+      if (!Array.isArray(items)) return;
 
-      if (name) {
-        const href = $(el).find("a").first().attr("href");
+      for (const item of items) {
+        const name = item.name?.trim();
+        const profileUrl = item.url;
+        if (!name) continue;
+
         places.push({
           name,
-          category,
-          address,
-          rating,
           source: "diningcode",
-          sourceUrl: href
-            ? href.startsWith("http")
-              ? href
-              : `https://www.diningcode.com${href}`
-            : undefined,
+          sourceUrl: profileUrl || undefined,
         });
       }
+    } catch {
+      // skip malformed JSON-LD
     }
-  );
+  });
 
-  return places.slice(0, 15);
+  return places.slice(0, 20);
 }
 
 export async function diningcodeAgent(
