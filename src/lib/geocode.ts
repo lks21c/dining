@@ -41,11 +41,13 @@ export const LANDMARK_MAP: Record<string, GeocodeResult> = {
   한강진역: { lat: 37.5398, lng: 126.9975, address: "서울특별시 용산구 한남동" },
 };
 
-/** Try local landmark map first */
+/** Try local landmark map first (only for short landmark queries, not full addresses) */
 function lookupLandmark(query: string): GeocodeResult | null {
   // Exact match
   if (LANDMARK_MAP[query]) return LANDMARK_MAP[query];
-  // Partial match
+  // Skip partial match for full addresses (contain numbers → house/building numbers)
+  if (/\d/.test(query)) return null;
+  // Partial match only for short landmark-like queries
   for (const [key, val] of Object.entries(LANDMARK_MAP)) {
     if (query.includes(key) || key.includes(query)) return val;
   }
