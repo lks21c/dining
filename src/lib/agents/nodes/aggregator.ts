@@ -108,6 +108,7 @@ export async function aggregator(
       reviewCount: p.sources[0]?.reviewCount || 0,
       parkingAvailable: false,
       nearbyParking: null,
+      tags: p.tags,
     }));
 
   // 7. Merge: seed data + crawled data (avoid name duplicates)

@@ -13,6 +13,7 @@ export interface RawCrawledPlace {
   source: string;
   sourceUrl?: string;
   snippet?: string;
+  tags?: string;  // 쉼표 구분: "청국장, 주물럭"
 }
 
 export const AgentStateAnnotation = Annotation.Root({

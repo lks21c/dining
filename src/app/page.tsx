@@ -122,10 +122,16 @@ export default function Home() {
         setCrawlToast(`"${crawlResult.keyword}": 새로운 결과가 없습니다.`);
       }
       setCrawlResult(null);
+    }
+  }, [crawlResult, searchThisArea, setCrawlResult]);
+
+  // Auto-dismiss toast after 4s (separate from crawlResult to avoid cleanup conflict)
+  useEffect(() => {
+    if (crawlToast) {
       const timer = setTimeout(() => setCrawlToast(null), 4000);
       return () => clearTimeout(timer);
     }
-  }, [crawlResult, searchThisArea, setCrawlResult]);
+  }, [crawlToast]);
 
   const showSuggestions = !query && !searchResult && isLoaded;
 

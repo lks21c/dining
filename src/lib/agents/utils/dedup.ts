@@ -78,6 +78,7 @@ export function deduplicatePlaces(places: RawCrawledPlace[]): MergedPlace[] {
       if (!existing.address && place.address) existing.address = place.address;
       if (!existing.category && place.category) existing.category = place.category;
       if (!existing.rating && place.rating) existing.rating = place.rating;
+      if (!existing.tags && place.tags) existing.tags = place.tags;
     } else {
       groups.push({
         ...place,

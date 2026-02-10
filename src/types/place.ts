@@ -19,6 +19,7 @@ export interface Restaurant extends BasePlace {
   reviewCount: number;
   parkingAvailable: boolean;
   nearbyParking: string | null;
+  tags?: string;
 }
 
 export interface Cafe extends BasePlace {
@@ -31,6 +32,7 @@ export interface Cafe extends BasePlace {
   reviewCount: number;
   parkingAvailable: boolean;
   nearbyParking: string | null;
+  tags?: string;
 }
 
 export interface ParkingLot extends BasePlace {

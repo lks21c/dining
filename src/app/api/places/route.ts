@@ -82,6 +82,7 @@ export async function GET(req: NextRequest) {
       reviewCount: cp.sources[0]?.reviewCount || 0,
       parkingAvailable: false,
       nearbyParking: null,
+      tags: cp.tags ?? undefined,
     }));
 
   // Merge: seed + crawled, deduplicate by name

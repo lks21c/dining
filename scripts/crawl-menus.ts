@@ -58,10 +58,29 @@ function extractFirstProfileUrl(html: string): string | null {
   return null;
 }
 
+/** Generate tags string from menuData: best menus first, else top 3 by rank */
+function generateTags(menuData: MenuEntry[]): string | null {
+  const bestMenus = menuData.filter((m) => m.best === 1);
+  if (bestMenus.length > 0) {
+    return bestMenus.map((m) => m.menu).join(", ");
+  }
+  const top3 = [...menuData].sort((a, b) => a.rank - b.rank).slice(0, 3);
+  if (top3.length > 0) {
+    return top3.map((m) => m.menu).join(", ");
+  }
+  return null;
+}
+
+interface CrawlResult {
+  menus: { menuName: string; price: string | null }[];
+  tags: string | null;
+}
+
 async function crawlMenusForPlace(
   placeName: string,
   existingSourceUrl?: string
-): Promise<{ menuName: string; price: string | null }[]> {
+): Promise<CrawlResult> {
+  const empty: CrawlResult = { menus: [], tags: null };
   let profileUrl = existingSourceUrl || null;
 
   // Step 1: Find profile URL if not provided
@@ -72,11 +91,11 @@ async function crawlMenusForPlace(
       profileUrl = extractFirstProfileUrl(searchHtml);
     } catch (e) {
       console.log(`  ⚠️ Search failed for "${placeName}": ${e}`);
-      return [];
+      return empty;
     }
     if (!profileUrl) {
       console.log(`  ⚠️ No profile found for "${placeName}"`);
-      return [];
+      return empty;
     }
     await sleep(DELAY_MS);
   }
@@ -87,18 +106,23 @@ async function crawlMenusForPlace(
     const menuData = extractMenuData(profileHtml);
     if (menuData.length === 0) {
       console.log(`  ⚠️ No menu data on profile for "${placeName}"`);
-      return [];
+      return empty;
     }
+
+    const tags = generateTags(menuData);
 
     // Take top-ranked menus (up to 10)
     const sorted = [...menuData].sort((a, b) => a.rank - b.rank).slice(0, 10);
-    return sorted.map((m) => ({
-      menuName: m.menu,
-      price: m.price || null,
-    }));
+    return {
+      menus: sorted.map((m) => ({
+        menuName: m.menu,
+        price: m.price || null,
+      })),
+      tags,
+    };
   } catch (e) {
     console.log(`  ⚠️ Profile fetch failed for "${placeName}": ${e}`);
-    return [];
+    return empty;
   }
 }
 
@@ -153,16 +177,16 @@ async function main() {
     }
 
     console.log(`${progress} 🔍 "${name}"...`);
-    const menus = await crawlMenusForPlace(name, sourceUrl);
+    const result = await crawlMenusForPlace(name, sourceUrl);
 
-    if (menus.length === 0) {
+    if (result.menus.length === 0) {
       failed++;
       await sleep(DELAY_MS);
       continue;
     }
 
-    // Save to DB
-    for (const m of menus) {
+    // Save menus to DB
+    for (const m of result.menus) {
       try {
         await prisma.menu.create({
           data: {
@@ -177,7 +201,19 @@ async function main() {
       }
     }
 
-    console.log(`  ✅ ${menus.length}개 메뉴 저장`);
+    // Save tags to CrawledPlace
+    if (result.tags) {
+      const cp = await prisma.crawledPlace.findFirst({ where: { name } });
+      if (cp) {
+        await prisma.crawledPlace.update({
+          where: { id: cp.id },
+          data: { tags: result.tags },
+        });
+        console.log(`  🏷️ 태그: ${result.tags}`);
+      }
+    }
+
+    console.log(`  ✅ ${result.menus.length}개 메뉴 저장`);
     success++;
     await sleep(DELAY_MS);
   }

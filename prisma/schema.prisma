@@ -76,6 +76,7 @@ model CrawledPlace {
   atmosphere  String?
   goodFor     String?
   imageUrl    String?
+  tags        String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   sources     PlaceSource[]

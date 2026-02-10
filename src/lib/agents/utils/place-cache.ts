@@ -39,6 +39,7 @@ export async function findCachedPlaces(
     source: cp.sources[0]?.source ?? "cache",
     sourceUrl: cp.sources[0]?.sourceUrl ?? undefined,
     snippet: cp.sources[0]?.snippet ?? undefined,
+    tags: cp.tags ?? undefined,
   }));
 }
 
@@ -49,6 +50,7 @@ interface MergedPlaceForSave {
   address?: string;
   lat?: number;
   lng?: number;
+  tags?: string;
   sources: {
     source: string;
     sourceUrl?: string;
@@ -81,6 +83,7 @@ export async function saveCrawledPlaces(
             address: place.address ?? existing.address,
             lat: place.lat ?? existing.lat,
             lng: place.lng ?? existing.lng,
+            tags: place.tags ?? existing.tags,
           },
         });
 
@@ -120,6 +123,7 @@ export async function saveCrawledPlaces(
             address: place.address,
             lat: place.lat,
             lng: place.lng,
+            tags: place.tags,
             sources: {
               create: place.sources.map((src) => ({
                 source: src.source,

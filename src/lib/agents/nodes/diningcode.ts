@@ -27,6 +27,10 @@ function extractListData(html: string): DiningCodePoi[] {
     const data = JSON.parse(unescaped);
     const list = data?.poi_section?.list;
     if (!Array.isArray(list)) return [];
+    // Dev: log first POI keys to discover tag-related fields
+    if (list.length > 0) {
+      console.log("[DiningCode] POI keys:", Object.keys(list[0]).join(", "));
+    }
     return list;
   } catch {
     return [];
@@ -43,6 +47,8 @@ interface DiningCodePoi {
   lng?: number;
   category?: string;
   score?: number;
+  keyword?: { term: string; mark: number }[] | string;
+  hash?: { term: string; mark: number }[] | string;
 }
 
 /**
@@ -58,17 +64,50 @@ export async function crawlDiningCode(
   const html = await fetchHtml(url);
 
   const poiList = extractListData(html);
+  const $ = parseHtml(html);
 
-  return poiList.slice(0, 20).map((poi) => ({
-    name: poi.branch ? `${poi.nm} ${poi.branch}` : poi.nm,
-    address: poi.road_addr || poi.addr,
-    lat: poi.lat,
-    lng: poi.lng,
-    source: "diningcode",
-    sourceUrl: poi.v_rid
-      ? `https://www.diningcode.com/profile.php?rid=${poi.v_rid}`
-      : undefined,
-  }));
+  // Build a map of restaurant name → keyword tags from HTML cards
+  const htmlTagMap = new Map<string, string>();
+  $(".PoiBlock, .dc-poi, li[class*='poi']").each((_, el) => {
+    const nameEl = $(el).find(".InfoHeader, .tit, .name").first();
+    const tagEl = $(el).find(".Hash, .Category, .keyword, .tag").first();
+    const cardName = nameEl.text().trim();
+    const tagText = tagEl.text().trim();
+    if (cardName && tagText) {
+      htmlTagMap.set(cardName, tagText.replace(/#/g, "").trim());
+    }
+  });
+
+  return poiList.slice(0, 20).map((poi) => {
+    const name = poi.branch ? `${poi.nm} ${poi.branch}` : poi.nm;
+    // Extract tags: keyword/hash can be array of {term, mark} or string
+    const extractTerms = (
+      field: { term: string; mark: number }[] | string | undefined
+    ): string | undefined => {
+      if (!field) return undefined;
+      if (typeof field === "string") return field;
+      if (Array.isArray(field) && field.length > 0) {
+        return field.map((t) => t.term).join(", ");
+      }
+      return undefined;
+    };
+    const tags =
+      extractTerms(poi.keyword) ||
+      extractTerms(poi.hash) ||
+      htmlTagMap.get(poi.nm) ||
+      undefined;
+    return {
+      name,
+      address: poi.road_addr || poi.addr,
+      lat: poi.lat,
+      lng: poi.lng,
+      source: "diningcode",
+      sourceUrl: poi.v_rid
+        ? `https://www.diningcode.com/profile.php?rid=${poi.v_rid}`
+        : undefined,
+      tags,
+    };
+  });
 }
 
 /**
