@@ -91,8 +91,8 @@ export async function aggregator(
   ];
 
   // 6. Convert crawled places to Place type (as restaurants)
-  const crawledAsPlaces: Place[] = inBounds
-    .filter((p) => p.lat && p.lng)
+  const validInBounds = inBounds.filter((p) => p.lat && p.lng);
+  const crawledAsPlaces: Place[] = validInBounds
     .map((p) => ({
       id: `crawled_${p.name.replace(/\s+/g, "_").toLowerCase()}_${Math.random().toString(36).slice(2, 8)}`,
       name: p.name,
@@ -110,6 +110,26 @@ export async function aggregator(
       nearbyParking: null,
       tags: p.tags,
     }));
+
+  // 6.5. Compute DiningCode ranking based on score within this result set
+  const withScores = crawledAsPlaces
+    .map((p, i) => {
+      const dcSource = validInBounds[i]?.sources.find((s) => s.source === "diningcode");
+      const meta = dcSource?.metadata;
+      let score: number | null = null;
+      if (meta) {
+        try { score = JSON.parse(meta).score ?? null; } catch { /* ignore */ }
+      }
+      return { place: p, score };
+    })
+    .filter((x): x is { place: Place; score: number } => x.score != null)
+    .sort((a, b) => b.score - a.score);
+
+  withScores.forEach((x, i) => {
+    if (x.place.type === "restaurant" || x.place.type === "cafe") {
+      x.place.diningcodeRank = i + 1;
+    }
+  });
 
   // 7. Merge: seed data + crawled data (avoid name duplicates)
   const seedNames = new Set(seedPlaces.map((p) => p.name.toLowerCase()));

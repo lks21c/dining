@@ -27,20 +27,26 @@ export async function findCachedPlaces(
     include: { sources: true },
   });
 
-  return cached.map((cp) => ({
-    name: cp.name,
-    category: cp.category ?? undefined,
-    description: cp.description ?? undefined,
-    address: cp.address ?? undefined,
-    lat: cp.lat ?? undefined,
-    lng: cp.lng ?? undefined,
-    rating: cp.sources[0]?.rating ?? undefined,
-    reviewCount: cp.sources[0]?.reviewCount ?? undefined,
-    source: cp.sources[0]?.source ?? "cache",
-    sourceUrl: cp.sources[0]?.sourceUrl ?? undefined,
-    snippet: cp.sources[0]?.snippet ?? undefined,
-    tags: cp.tags ?? undefined,
-  }));
+  return cached.map((cp) => {
+    // Prefer diningcode source for rating/metadata if available
+    const dcSource = cp.sources.find((s) => s.source === "diningcode");
+    const primarySource = dcSource || cp.sources[0];
+    return {
+      name: cp.name,
+      category: cp.category ?? undefined,
+      description: cp.description ?? undefined,
+      address: cp.address ?? undefined,
+      lat: cp.lat ?? undefined,
+      lng: cp.lng ?? undefined,
+      rating: primarySource?.rating ?? undefined,
+      reviewCount: primarySource?.reviewCount ?? undefined,
+      source: primarySource?.source ?? "cache",
+      sourceUrl: primarySource?.sourceUrl ?? undefined,
+      snippet: primarySource?.snippet ?? undefined,
+      tags: cp.tags ?? undefined,
+      metadata: dcSource?.metadata ?? undefined,
+    };
+  });
 }
 
 interface MergedPlaceForSave {
@@ -57,6 +63,7 @@ interface MergedPlaceForSave {
     rating?: number;
     reviewCount?: number;
     snippet?: string;
+    metadata?: string;
   }[];
 }
 
@@ -101,6 +108,7 @@ export async function saveCrawledPlaces(
               rating: src.rating,
               reviewCount: src.reviewCount,
               snippet: src.snippet,
+              metadata: src.metadata,
               crawledAt: new Date(),
             },
             create: {
@@ -110,6 +118,7 @@ export async function saveCrawledPlaces(
               rating: src.rating,
               reviewCount: src.reviewCount,
               snippet: src.snippet,
+              metadata: src.metadata,
             },
           });
         }
@@ -131,6 +140,7 @@ export async function saveCrawledPlaces(
                 rating: src.rating,
                 reviewCount: src.reviewCount,
                 snippet: src.snippet,
+                metadata: src.metadata,
               })),
             },
           },

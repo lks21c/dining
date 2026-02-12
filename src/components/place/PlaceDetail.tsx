@@ -87,6 +87,11 @@ export default function PlaceDetail({ place, onClose }: PlaceDetailProps) {
                 {place.priceRange}
               </span>
             )}
+            {"diningcodeRank" in place && place.diningcodeRank != null && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 font-medium text-xs">
+                다이닝코드 {place.diningcodeRank}위
+              </span>
+            )}
           </div>
         )}
 

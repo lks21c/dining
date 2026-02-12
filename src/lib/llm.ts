@@ -127,7 +127,12 @@ interface LLMResponse {
 
 /* ---------- Public API ---------- */
 
-export async function extractLocation(query: string): Promise<string | null> {
+export interface ExtractLocationResult {
+  location: string | null;
+  error?: string;
+}
+
+export async function extractLocation(query: string): Promise<ExtractLocationResult> {
   try {
     const completion = await openrouter.chat.completions.create({
       model: MODEL,
@@ -153,11 +158,12 @@ export async function extractLocation(query: string): Promise<string | null> {
     });
 
     const result = completion.choices[0]?.message?.content?.trim();
-    if (!result || result === "NONE") return null;
-    return result;
+    if (!result || result === "NONE") return { location: null };
+    return { location: result };
   } catch (error) {
     console.error("Location extraction error:", error);
-    return null;
+    const errMsg = error instanceof Error ? error.message : String(error);
+    return { location: null, error: errMsg };
   }
 }
 
@@ -165,6 +171,8 @@ export interface GetRecommendationsResult {
   summary: string;
   persona: string;
   courses: Course[];
+  /** Set when LLM failed and fallback was used */
+  warning?: string;
 }
 
 export async function getRecommendations(
@@ -222,7 +230,15 @@ ${compressed.join("\n")}
     };
   } catch (error) {
     console.error("LLM error, falling back to keyword search:", error);
-    return keywordFallback(query, places);
+    const errMsg = error instanceof Error ? error.message : String(error);
+    const isAuthError = errMsg.includes("401") || errMsg.includes("403") || errMsg.includes("API key");
+    const isModelError = errMsg.includes("404") || errMsg.includes("No allowed providers");
+    const warning = isAuthError
+      ? "AI 추천 서비스에 연결할 수 없습니다 (API 키 오류). 키워드 기반 검색 결과를 대신 표시합니다."
+      : isModelError
+      ? "AI 모델에 연결할 수 없습니다 (모델 설정 오류). 키워드 기반 검색 결과를 대신 표시합니다."
+      : "AI 추천 서비스에 일시적 오류가 발생했습니다. 키워드 기반 검색 결과를 대신 표시합니다.";
+    return { ...keywordFallback(query, places), warning };
   }
 }
 

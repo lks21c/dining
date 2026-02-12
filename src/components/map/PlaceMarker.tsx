@@ -37,6 +37,10 @@ function buildBubbleIcon(place: Place, color: string): { content: string; anchor
   const tagHtml = tag
     ? `<span style="color:#999;font-weight:400;"> ${escapeHtml(tag)}</span>`
     : "";
+  const rankHtml =
+    "diningcodeRank" in place && place.diningcodeRank != null
+      ? `<span style="background:#FFF7ED;color:#C2410C;font-weight:600;font-size:10px;padding:0 4px;border-radius:3px;margin-left:4px;">${place.diningcodeRank}위</span>`
+      : "";
 
   // anchor (0,0) = wrapper origin = 꼭지점 위치 → 말풍선은 translate로 위에 띄움
   const content = `<div style="width:0;height:0;cursor:pointer;">
@@ -54,7 +58,7 @@ function buildBubbleIcon(place: Place, color: string): { content: string; anchor
         font-size:12px;line-height:1.4;
         white-space:nowrap;
         box-shadow:0 1px 4px rgba(0,0,0,0.18);
-      "><span style="font-weight:700;color:#222;">${name}</span>${tagHtml}</div>
+      "><span style="font-weight:700;color:#222;">${name}</span>${rankHtml}${tagHtml}</div>
       <div style="
         width:0;height:0;
         border-left:5px solid transparent;

@@ -64,8 +64,8 @@ export async function GET(req: NextRequest) {
   ];
 
   // Convert crawled places to Restaurant type
-  const crawledAsPlaces: Place[] = crawledPlaces
-    .filter((cp) => cp.lat != null && cp.lng != null)
+  const validCrawled = crawledPlaces.filter((cp) => cp.lat != null && cp.lng != null);
+  const crawledAsPlaces: Place[] = validCrawled
     .map((cp) => ({
       id: cp.id,
       name: cp.name,
@@ -84,6 +84,26 @@ export async function GET(req: NextRequest) {
       nearbyParking: null,
       tags: cp.tags ?? undefined,
     }));
+
+  // Compute DiningCode ranking based on score within this result set
+  const withScores = crawledAsPlaces
+    .map((p, i) => {
+      const dcSource = validCrawled[i]?.sources.find((s) => s.source === "diningcode");
+      const meta = dcSource?.metadata;
+      let score: number | null = null;
+      if (meta) {
+        try { score = JSON.parse(meta).score ?? null; } catch { /* ignore */ }
+      }
+      return { place: p, score };
+    })
+    .filter((x): x is { place: Place; score: number } => x.score != null)
+    .sort((a, b) => b.score - a.score);
+
+  withScores.forEach((x, i) => {
+    if (x.place.type === "restaurant" || x.place.type === "cafe") {
+      x.place.diningcodeRank = i + 1;
+    }
+  });
 
   // Merge: seed + crawled, deduplicate by name
   const seedNames = new Set(seedPlaces.map((p) => p.name.toLowerCase()));

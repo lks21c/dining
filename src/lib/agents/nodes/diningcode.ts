@@ -96,6 +96,7 @@ export async function crawlDiningCode(
       extractTerms(poi.hash) ||
       htmlTagMap.get(poi.nm) ||
       undefined;
+    const score = poi.score ?? undefined;
     return {
       name,
       address: poi.road_addr || poi.addr,
@@ -106,6 +107,8 @@ export async function crawlDiningCode(
         ? `https://www.diningcode.com/profile.php?rid=${poi.v_rid}`
         : undefined,
       tags,
+      rating: score,
+      metadata: JSON.stringify({ score: score ?? null }),
     };
   });
 }

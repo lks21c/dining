@@ -20,6 +20,7 @@ export interface Restaurant extends BasePlace {
   parkingAvailable: boolean;
   nearbyParking: string | null;
   tags?: string;
+  diningcodeRank?: number;
 }
 
 export interface Cafe extends BasePlace {
@@ -33,6 +34,7 @@ export interface Cafe extends BasePlace {
   parkingAvailable: boolean;
   nearbyParking: string | null;
   tags?: string;
+  diningcodeRank?: number;
 }
 
 export interface ParkingLot extends BasePlace {
@@ -81,4 +83,6 @@ export interface SearchResult {
   routeSummary: string;
   places: Place[];
   center?: { lat: number; lng: number; name: string };
+  /** Non-fatal warning (e.g. LLM unavailable, using fallback) */
+  warning?: string;
 }

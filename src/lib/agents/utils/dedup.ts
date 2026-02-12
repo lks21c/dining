@@ -42,7 +42,7 @@ export function isSamePlace(a: RawCrawledPlace, b: RawCrawledPlace): boolean {
 }
 
 interface MergedPlace extends RawCrawledPlace {
-  sources: { source: string; sourceUrl?: string; rating?: number; reviewCount?: number; snippet?: string }[];
+  sources: { source: string; sourceUrl?: string; rating?: number; reviewCount?: number; snippet?: string; metadata?: string }[];
 }
 
 /**
@@ -69,6 +69,7 @@ export function deduplicatePlaces(places: RawCrawledPlace[]): MergedPlace[] {
           rating: place.rating,
           reviewCount: place.reviewCount,
           snippet: place.snippet,
+          metadata: place.metadata,
         });
       }
 
@@ -89,6 +90,7 @@ export function deduplicatePlaces(places: RawCrawledPlace[]): MergedPlace[] {
             rating: place.rating,
             reviewCount: place.reviewCount,
             snippet: place.snippet,
+            metadata: place.metadata,
           },
         ],
       });

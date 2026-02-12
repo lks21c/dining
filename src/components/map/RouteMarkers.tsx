@@ -3,51 +3,58 @@
 import { useEffect, useRef } from "react";
 import type { SearchResult } from "@/types/place";
 
-const TYPE_COLORS: Record<string, string> = {
-  restaurant: "#EF4444",
-  cafe: "#92400E",
-  parking: "#3B82F6",
-};
+// Per-order colors: marker number color = route segment color
+const ORDER_COLORS = [
+  "#3B82F6", // 1: blue (parking)
+  "#EF4444", // 2: red (restaurant)
+  "#F59E0B", // 3: amber (cafe)
+  "#10B981", // 4: emerald
+  "#8B5CF6", // 5: violet
+];
 
-interface WalkingLeg {
-  distance: number; // meters
-  duration: number; // seconds
+function getOrderColor(order: number): string {
+  return ORDER_COLORS[(order - 1) % ORDER_COLORS.length];
 }
 
-interface WalkingRoute {
+interface WalkingSegment {
   path: { lat: number; lng: number }[];
-  legs: WalkingLeg[];
+  distance: number;
+  duration: number;
 }
 
-async function getWalkingRoute(
+async function getWalkingSegments(
   stops: { lat: number; lng: number }[]
-): Promise<WalkingRoute | null> {
+): Promise<WalkingSegment[] | null> {
   if (stops.length < 2) return null;
 
-  const coords = stops.map((s) => `${s.lng},${s.lat}`).join(";");
-  const url = `https://router.project-osrm.org/route/v1/foot/${coords}?overview=full&geometries=geojson&steps=false`;
+  const segments = await Promise.all(
+    stops.slice(0, -1).map(async (from, i) => {
+      const to = stops[i + 1];
+      const coords = `${from.lng},${from.lat};${to.lng},${to.lat}`;
+      const url = `https://router.project-osrm.org/route/v1/foot/${coords}?overview=full&geometries=geojson&steps=false`;
 
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.code !== "Ok" || !data.routes?.[0]) return null;
 
-    if (data.code !== "Ok" || !data.routes?.[0]) return null;
+        const route = data.routes[0];
+        const path = route.geometry.coordinates.map(
+          ([lng, lat]: [number, number]) => ({ lat, lng })
+        );
+        return {
+          path,
+          distance: Math.round(route.distance),
+          duration: Math.round(route.duration),
+        };
+      } catch {
+        return null;
+      }
+    })
+  );
 
-    const route = data.routes[0];
-    const path = route.geometry.coordinates.map(
-      ([lng, lat]: [number, number]) => ({ lat, lng })
-    );
-    const legs: WalkingLeg[] = route.legs.map(
-      (leg: { distance: number; duration: number }) => ({
-        distance: Math.round(leg.distance),
-        duration: Math.round(leg.duration),
-      })
-    );
-
-    return { path, legs };
-  } catch {
-    return null;
-  }
+  if (segments.some((s) => s === null)) return null;
+  return segments as WalkingSegment[];
 }
 
 interface RouteMarkersProps {
@@ -58,7 +65,7 @@ interface RouteMarkersProps {
 export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
   const markersRef = useRef<naver.maps.Marker[]>([]);
   const distLabelsRef = useRef<naver.maps.Marker[]>([]);
-  const polylineRef = useRef<naver.maps.Polyline | null>(null);
+  const polylinesRef = useRef<naver.maps.Polyline[]>([]);
 
   useEffect(() => {
     if (!map || !searchResult.places.length) return;
@@ -68,8 +75,8 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
     markersRef.current = [];
     distLabelsRef.current.forEach((m) => m.setMap(null));
     distLabelsRef.current = [];
-    polylineRef.current?.setMap(null);
-    polylineRef.current = null;
+    polylinesRef.current.forEach((p) => p.setMap(null));
+    polylinesRef.current = [];
 
     const placeMap = new Map(searchResult.places.map((p) => [p.id, p]));
 
@@ -83,9 +90,9 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
 
     if (stops.length === 0) return;
 
-    // Create numbered circle markers
+    // Create numbered circle markers with order-based colors
     stops.forEach(({ place, rec }) => {
-      const color = TYPE_COLORS[rec.type] || "#6B7280";
+      const color = getOrderColor(rec.order);
       const pos = new naver.maps.LatLng(place.lat, place.lng);
 
       const marker = new naver.maps.Marker({
@@ -122,45 +129,47 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
     if (firstIsParking && stops.length > 1) {
       positions.push({ lat: stops[0].place.lat, lng: stops[0].place.lng });
     }
-    // Total waypoint count including return (for label logic)
     const totalWaypoints = positions.length;
 
-    getWalkingRoute(positions).then((route) => {
-      if (route) {
-        // Draw actual walking route
-        const path = route.path.map(
-          (p) => new naver.maps.LatLng(p.lat, p.lng)
-        );
-        polylineRef.current = new naver.maps.Polyline({
-          map,
-          path,
-          strokeColor: "#6366F1",
-          strokeWeight: 4,
-          strokeOpacity: 0.8,
-          strokeStyle: "solid",
-        });
+    getWalkingSegments(positions).then((segments) => {
+      if (segments) {
+        // Draw each segment as a separate colored polyline
+        segments.forEach((seg, i) => {
+          const isReturnLeg = firstIsParking && i === totalWaypoints - 2;
+          // Segment from stop i → stop i+1 uses color of stop i+1 (1-indexed order)
+          const segColor = isReturnLeg
+            ? getOrderColor(1) // return to parking uses parking color
+            : getOrderColor(i + 1);
 
-        // Add distance labels between each pair of waypoints
-        route.legs.forEach((leg, i) => {
+          const path = seg.path.map(
+            (p) => new naver.maps.LatLng(p.lat, p.lng)
+          );
+          const polyline = new naver.maps.Polyline({
+            map,
+            path,
+            strokeColor: segColor,
+            strokeWeight: 5,
+            strokeOpacity: 0.85,
+            strokeStyle: isReturnLeg ? "shortdash" : "solid",
+          });
+          polylinesRef.current.push(polyline);
+
+          // Distance label
           const fromPos = positions[i];
           const toPos = positions[i + 1];
           if (!toPos) return;
 
           const midLat = (fromPos.lat + toPos.lat) / 2;
           const midLng = (fromPos.lng + toPos.lng) / 2;
-          const minutes = Math.max(1, Math.ceil(leg.duration / 60));
+          const minutes = Math.max(1, Math.ceil(seg.duration / 60));
           const distText =
-            leg.distance >= 1000
-              ? `${(leg.distance / 1000).toFixed(1)}km`
-              : `${leg.distance}m`;
+            seg.distance >= 1000
+              ? `${(seg.distance / 1000).toFixed(1)}km`
+              : `${seg.distance}m`;
 
-          // Last leg = return to parking
-          const isReturnLeg = firstIsParking && i === totalWaypoints - 2;
           const label = isReturnLeg
             ? `🅿️ ${distText} · ${minutes}분 복귀`
             : `🚶 ${distText} · ${minutes}분`;
-          const color = isReturnLeg ? "#3B82F6" : "#4F46E5";
-          const borderColor = isReturnLeg ? "#BFDBFE" : "#C7D2FE";
 
           const labelMarker = new naver.maps.Marker({
             position: new naver.maps.LatLng(midLat, midLng),
@@ -172,8 +181,8 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
                 padding:3px 8px;
                 border-radius:12px;
                 font-size:11px;
-                color:${color};
-                border:1.5px solid ${borderColor};
+                color:${segColor};
+                border:1.5px solid ${segColor}40;
                 white-space:nowrap;
                 font-weight:600;
                 box-shadow:0 2px 6px rgba(0,0,0,0.15);
@@ -186,26 +195,31 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
           distLabelsRef.current.push(labelMarker);
         });
       } else {
-        // Fallback: straight dashed line (including return leg)
-        const path = positions.map(
-          (p) => new naver.maps.LatLng(p.lat, p.lng)
-        );
-        polylineRef.current = new naver.maps.Polyline({
-          map,
-          path,
-          strokeColor: "#6366F1",
-          strokeWeight: 3,
-          strokeOpacity: 0.7,
-          strokeStyle: "shortdash",
-        });
-
-        // Straight-line distance labels (approximate walking ×1.3)
+        // Fallback: straight dashed lines per segment
         for (let i = 0; i < positions.length - 1; i++) {
           const from = positions[i];
           const to = positions[i + 1];
+          const isReturnLeg = firstIsParking && i === positions.length - 2;
+          const segColor = isReturnLeg
+            ? getOrderColor(1)
+            : getOrderColor(i + 1);
+
+          const polyline = new naver.maps.Polyline({
+            map,
+            path: [
+              new naver.maps.LatLng(from.lat, from.lng),
+              new naver.maps.LatLng(to.lat, to.lng),
+            ],
+            strokeColor: segColor,
+            strokeWeight: 3,
+            strokeOpacity: 0.7,
+            strokeStyle: "shortdash",
+          });
+          polylinesRef.current.push(polyline);
+
           const straight = calcDistanceM(from.lat, from.lng, to.lat, to.lng);
           const walking = Math.round(straight * 1.3);
-          const minutes = Math.max(1, Math.ceil(walking / 80)); // ~80m/min walking
+          const minutes = Math.max(1, Math.ceil(walking / 80));
           const distText =
             walking >= 1000
               ? `${(walking / 1000).toFixed(1)}km`
@@ -214,7 +228,6 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
           const midLat = (from.lat + to.lat) / 2;
           const midLng = (from.lng + to.lng) / 2;
 
-          const isReturnLeg = firstIsParking && i === positions.length - 2;
           const label = isReturnLeg
             ? `🅿️ ~${distText} · ~${minutes}분 복귀`
             : `~${distText} · ~${minutes}분`;
@@ -229,8 +242,8 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
                 padding:3px 8px;
                 border-radius:12px;
                 font-size:11px;
-                color:${isReturnLeg ? "#3B82F6" : "#9CA3AF"};
-                border:1.5px solid ${isReturnLeg ? "#BFDBFE" : "#E5E7EB"};
+                color:${segColor};
+                border:1.5px solid ${segColor}40;
                 white-space:nowrap;
                 font-weight:600;
                 box-shadow:0 2px 6px rgba(0,0,0,0.1);
@@ -262,8 +275,8 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
       markersRef.current = [];
       distLabelsRef.current.forEach((m) => m.setMap(null));
       distLabelsRef.current = [];
-      polylineRef.current?.setMap(null);
-      polylineRef.current = null;
+      polylinesRef.current.forEach((p) => p.setMap(null));
+      polylinesRef.current = [];
     };
   }, [map, searchResult]);
 

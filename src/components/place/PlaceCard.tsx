@@ -74,6 +74,11 @@ export default function PlaceCard({ place, order, reason, onClick, expanded }: P
               <span className="text-yellow-600">★ {rating}</span>
             )}
             {priceRange && <span>{priceRange}</span>}
+            {"diningcodeRank" in place && place.diningcodeRank != null && (
+              <span className="text-orange-600 font-medium">
+                다이닝코드 {place.diningcodeRank}위
+              </span>
+            )}
           </div>
           <p className={`text-xs text-gray-600 ${expanded ? "" : "line-clamp-2"}`}>
             {place.description}

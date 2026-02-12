@@ -28,7 +28,11 @@ export async function POST(req: NextRequest) {
   }
 
   // 1. Extract location from query
-  const locationName = await extractLocation(query);
+  const { location: locationName, error: locationError } = await extractLocation(query);
+  let llmWarning: string | undefined;
+  if (locationError) {
+    llmWarning = "AI 서비스에 연결할 수 없어 위치를 자동 인식하지 못했습니다. 현재 지도 영역에서 키워드 기반으로 검색합니다.";
+  }
 
   let searchBounds = bounds;
   let center: { lat: number; lng: number; name: string } | undefined;
@@ -96,8 +100,9 @@ export async function POST(req: NextRequest) {
 
     // Add crawled places (avoid duplicates with seed data)
     const seedNames = new Set(seedPlaces.map((p) => p.name.toLowerCase()));
-    const crawledAsPlaces: Place[] = crawledRecords
-      .filter((cp) => cp.lat && cp.lng && !seedNames.has(cp.name.toLowerCase()))
+    const validCrawled = crawledRecords
+      .filter((cp) => cp.lat && cp.lng && !seedNames.has(cp.name.toLowerCase()));
+    const crawledAsPlaces: Place[] = validCrawled
       .map((cp) => ({
         id: cp.id,
         name: cp.name,
@@ -114,6 +119,26 @@ export async function POST(req: NextRequest) {
         parkingAvailable: false,
         nearbyParking: null,
       }));
+
+    // Compute DiningCode ranking based on score within this result set
+    const withScores = crawledAsPlaces
+      .map((p, i) => {
+        const dcSource = validCrawled[i]?.sources.find((s) => s.source === "diningcode");
+        const meta = dcSource?.metadata;
+        let score: number | null = null;
+        if (meta) {
+          try { score = JSON.parse(meta).score ?? null; } catch { /* ignore */ }
+        }
+        return { place: p, score };
+      })
+      .filter((x): x is { place: Place; score: number } => x.score != null)
+      .sort((a, b) => b.score - a.score);
+
+    withScores.forEach((x, i) => {
+      if (x.place.type === "restaurant" || x.place.type === "cafe") {
+        x.place.diningcodeRank = i + 1;
+      }
+    });
 
     const allPlaces = [...seedPlaces, ...crawledAsPlaces];
 
@@ -149,6 +174,8 @@ export async function POST(req: NextRequest) {
     // Default to first course for RouteMarkers
     const firstCourse = llmResult.courses[0];
 
+    const warning = llmResult.warning || llmWarning;
+
     return NextResponse.json({
       summary: llmResult.summary,
       persona: llmResult.persona,
@@ -157,6 +184,7 @@ export async function POST(req: NextRequest) {
       routeSummary: firstCourse?.routeSummary || "",
       places: referencedPlaces,
       center,
+      ...(warning && { warning }),
     });
   } catch (error) {
     console.error("Search error:", error);

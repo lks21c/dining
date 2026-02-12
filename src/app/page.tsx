@@ -171,6 +171,16 @@ export default function Home() {
           </div>
         )}
 
+        {/* LLM warning toast */}
+        {searchResult?.warning && (
+          <div className="absolute bottom-4 left-4 right-4 z-30 md:left-auto md:right-4 md:w-96">
+            <div className="bg-amber-50 border border-amber-300 text-amber-800 text-sm px-4 py-3 rounded-lg shadow-lg flex items-start gap-2">
+              <span className="shrink-0 mt-0.5">⚠️</span>
+              <span>{searchResult.warning}</span>
+            </div>
+          </div>
+        )}
+
         {/* Error toast */}
         {(error || crawlError) && (
           <div className="absolute bottom-4 left-4 right-4 z-30 md:left-auto md:right-4 md:w-80">

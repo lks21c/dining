@@ -14,6 +14,7 @@ export interface RawCrawledPlace {
   sourceUrl?: string;
   snippet?: string;
   tags?: string;  // 쉼표 구분: "청국장, 주물럭"
+  metadata?: string;  // JSON: {"score": 87.5}
 }
 
 export const AgentStateAnnotation = Annotation.Root({
