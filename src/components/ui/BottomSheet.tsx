@@ -11,9 +11,10 @@ const SNAP_POINTS = {
 interface BottomSheetProps {
   children: ReactNode;
   expandOnContent?: boolean;
+  fullHeight?: boolean;
 }
 
-export default function BottomSheet({ children, expandOnContent }: BottomSheetProps) {
+export default function BottomSheet({ children, expandOnContent, fullHeight }: BottomSheetProps) {
   const [heightPercent, setHeightPercent] = useState(SNAP_POINTS.half);
   const dragging = useRef(false);
   const startY = useRef(0);
@@ -60,7 +61,7 @@ export default function BottomSheet({ children, expandOnContent }: BottomSheetPr
       className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl
         transition-[height] duration-300 ease-out z-40 flex flex-col
         md:static md:w-[380px] md:h-full md:rounded-none md:shadow-xl md:border-r border-gray-200"
-      style={{ height: `${heightPercent}vh` }}
+      style={{ height: fullHeight ? "100vh" : `${heightPercent}vh` }}
     >
       {/* Drag handle (mobile only) */}
       <div
@@ -73,7 +74,7 @@ export default function BottomSheet({ children, expandOnContent }: BottomSheetPr
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden">{children}</div>
+      <div className="flex-1 overflow-y-auto">{children}</div>
     </div>
   );
 }

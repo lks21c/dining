@@ -59,6 +59,11 @@ export default function PlaceCard({ place, order, reason, onClick, expanded }: P
         )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
+            {"diningcodeRank" in place && place.diningcodeRank != null && (
+              <span className="flex-shrink-0 text-xs px-1.5 py-0.5 rounded bg-orange-600 text-white font-bold">
+                {place.diningcodeRank}위
+              </span>
+            )}
             <h3 className="font-semibold text-gray-900 text-sm truncate">
               {place.name}
             </h3>
@@ -74,11 +79,6 @@ export default function PlaceCard({ place, order, reason, onClick, expanded }: P
               <span className="text-yellow-600">★ {rating}</span>
             )}
             {priceRange && <span>{priceRange}</span>}
-            {"diningcodeRank" in place && place.diningcodeRank != null && (
-              <span className="text-orange-600 font-medium">
-                다이닝코드 {place.diningcodeRank}위
-              </span>
-            )}
           </div>
           <p className={`text-xs text-gray-600 ${expanded ? "" : "line-clamp-2"}`}>
             {place.description}

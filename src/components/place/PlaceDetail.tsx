@@ -28,9 +28,10 @@ function calc3HourRate(p: ParkingLot): number {
 interface PlaceDetailProps {
   place: Place;
   onClose: () => void;
+  regionName?: string;
 }
 
-export default function PlaceDetail({ place, onClose }: PlaceDetailProps) {
+export default function PlaceDetail({ place, onClose, regionName }: PlaceDetailProps) {
   const isRatable = place.type !== "parking";
   const [menus, setMenus] = useState<MenuData[]>([]);
 
@@ -48,6 +49,11 @@ export default function PlaceDetail({ place, onClose }: PlaceDetailProps) {
       <div className="flex items-center justify-between p-4 border-b border-gray-100">
         <div>
           <div className="flex items-center gap-2">
+            {"diningcodeRank" in place && place.diningcodeRank != null && (
+              <span className="text-xs px-2 py-0.5 rounded bg-orange-600 text-white font-bold">
+                {place.diningcodeRank}위
+              </span>
+            )}
             <h2 className="text-lg font-bold text-gray-900">{place.name}</h2>
             <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
               {TYPE_LABELS[place.type]}
@@ -85,11 +91,6 @@ export default function PlaceDetail({ place, onClose }: PlaceDetailProps) {
             {"priceRange" in place && (
               <span className="text-gray-600 font-medium">
                 {place.priceRange}
-              </span>
-            )}
-            {"diningcodeRank" in place && place.diningcodeRank != null && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 font-medium text-xs">
-                다이닝코드 {place.diningcodeRank}위
               </span>
             )}
           </div>
@@ -148,10 +149,12 @@ export default function PlaceDetail({ place, onClose }: PlaceDetailProps) {
         )}
 
         {/* External search links */}
-        {place.type !== "parking" && (
+        {place.type !== "parking" && (() => {
+          const searchQuery = regionName ? `${regionName} ${place.name}` : place.name;
+          return (
           <div className="grid grid-cols-2 gap-2">
             <a
-              href={`https://map.naver.com/p/search/${encodeURIComponent(place.name)}`}
+              href={`https://map.naver.com/p/search/${encodeURIComponent(searchQuery)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-1.5 py-2 rounded-lg
@@ -163,7 +166,7 @@ export default function PlaceDetail({ place, onClose }: PlaceDetailProps) {
               네이버지도
             </a>
             <a
-              href={`https://search.naver.com/search.naver?ssc=tab.blog&query=${encodeURIComponent(place.name)}`}
+              href={`https://search.naver.com/search.naver?ssc=tab.blog&query=${encodeURIComponent(searchQuery)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-1.5 py-2 rounded-lg
@@ -175,7 +178,7 @@ export default function PlaceDetail({ place, onClose }: PlaceDetailProps) {
               네이버블로그
             </a>
             <a
-              href={`https://www.diningcode.com/list.dc?query=${encodeURIComponent(place.name)}`}
+              href={`https://www.diningcode.com/list.dc?query=${encodeURIComponent(searchQuery)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-1.5 py-2 rounded-lg
@@ -187,7 +190,7 @@ export default function PlaceDetail({ place, onClose }: PlaceDetailProps) {
               다이닝코드
             </a>
             <a
-              href={`https://www.youtube.com/results?search_query=${encodeURIComponent(place.name)}`}
+              href={`https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-1.5 py-2 rounded-lg
@@ -199,7 +202,8 @@ export default function PlaceDetail({ place, onClose }: PlaceDetailProps) {
               YouTube
             </a>
           </div>
-        )}
+          );
+        })()}
 
         {/* Parking lot details */}
         {place.type === "parking" && (

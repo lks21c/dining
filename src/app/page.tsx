@@ -35,10 +35,14 @@ export default function Home() {
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [crawlToast, setCrawlToast] = useState<string | null>(null);
   const [activeCourse, setActiveCourse] = useState(0);
+  const [regionName, setRegionName] = useState<string | undefined>();
 
-  // Reset active course when search result changes
+  // Reset active course when search result changes, persist region name
   useEffect(() => {
     setActiveCourse(0);
+    if (searchResult?.center?.name) {
+      setRegionName(searchResult.center.name);
+    }
   }, [searchResult]);
 
   // Derive display result for RouteMarkers based on selected course
@@ -107,6 +111,7 @@ export default function Home() {
   // Show toast and refetch when crawl completes
   useEffect(() => {
     if (crawlResult) {
+      setRegionName(crawlResult.keyword);
       const parts: string[] = [];
       if (crawlResult.count > 0) {
         parts.push(`맛집 ${crawlResult.count}개`);
@@ -157,14 +162,14 @@ export default function Home() {
 
         {/* Action buttons container — only when zoomed in */}
         {isLoaded && !searchResult && zoom >= MIN_MARKER_ZOOM && (
-          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20">
+          <div className="absolute top-32 left-1/2 -translate-x-1/2 z-20">
             <CrawlButton crawling={crawling} onCrawl={handleCrawl} />
           </div>
         )}
 
         {/* Zoom hint — when zoomed out */}
         {isLoaded && !searchResult && zoom < MIN_MARKER_ZOOM && (
-          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20">
+          <div className="absolute top-32 left-1/2 -translate-x-1/2 z-20">
             <div className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow-md text-sm text-gray-500 whitespace-nowrap">
               지도를 확대하면 맛집이 표시됩니다
             </div>
@@ -230,11 +235,12 @@ export default function Home() {
       </div>
 
       {/* Side panel / Bottom sheet */}
-      <BottomSheet expandOnContent={!!searchResult}>
+      <BottomSheet expandOnContent={!!searchResult} fullHeight={!!selectedPlace}>
         {selectedPlace ? (
           <PlaceDetail
             place={selectedPlace}
             onClose={() => setSelectedPlace(null)}
+            regionName={regionName}
           />
         ) : (
           <PlaceList
