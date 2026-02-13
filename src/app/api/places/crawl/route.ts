@@ -2,9 +2,10 @@ import { NextRequest } from "next/server";
 import { crawlDiningCode } from "@/lib/agents/nodes/diningcode";
 import { deduplicatePlaces } from "@/lib/agents/utils/dedup";
 import { saveCrawledPlaces } from "@/lib/agents/utils/place-cache";
+import { classifyPlaces } from "@/lib/classify";
 import { geocode } from "@/lib/geocode";
 import { prisma } from "@/lib/prisma";
-import { openrouter, MODEL, FLASH_MODEL, extractJson } from "@/lib/openrouter";
+import { openrouter, MODEL, extractJson } from "@/lib/openrouter";
 import type { Bounds } from "@/types/place";
 
 /* ---------- SSE helper ---------- */
@@ -111,73 +112,6 @@ async function saveParkingLots(lots: ParkingData[]): Promise<number> {
     added++;
   }
   return added;
-}
-
-/* ---------- Gemini 카테고리 분류 ---------- */
-
-type CrawlPlaceType = "restaurant" | "cafe" | "bar" | "bakery";
-
-interface PlaceForClassify {
-  name: string;
-  category?: string;
-  tags?: string;
-  description?: string;
-}
-
-async function classifyPlaces(
-  places: PlaceForClassify[]
-): Promise<Record<string, CrawlPlaceType>> {
-  if (places.length === 0) return {};
-
-  const items = places.map((p) => ({
-    name: p.name,
-    category: p.category || "",
-    tags: p.tags || "",
-    desc: (p.description || "").slice(0, 60),
-  }));
-
-  try {
-    const completion = await openrouter.chat.completions.create({
-      model: FLASH_MODEL,
-      temperature: 0,
-      max_tokens: 4000,
-      messages: [
-        {
-          role: "system",
-          content: `당신은 음식점/가게를 분류하는 전문가입니다.
-각 가게를 아래 4가지 중 하나로 분류하세요:
-- "restaurant": 일반 음식점, 맛집 (한식, 중식, 일식, 양식, 분식 등)
-- "cafe": 카페, 커피숍, 차 전문점
-- "bar": 술집, 주점, 이자카야, 포차, 호프, 와인바, 칵테일바, 펍
-- "bakery": 빵집, 베이커리, 제과점, 도넛, 케이크숍, 베이글, 크루아상, 마카롱, 타르트, 소금빵
-
-JSON 배열로만 응답하세요:
-[{"name":"가게명","type":"restaurant|cafe|bar|bakery"}]`,
-        },
-        {
-          role: "user",
-          content: JSON.stringify(items),
-        },
-      ],
-    });
-
-    const content = completion.choices[0]?.message?.content;
-    if (!content) return {};
-
-    const parsed: { name: string; type: CrawlPlaceType }[] = JSON.parse(
-      extractJson(content)
-    );
-    const result: Record<string, CrawlPlaceType> = {};
-    for (const p of parsed) {
-      if (["restaurant", "cafe", "bar", "bakery"].includes(p.type)) {
-        result[p.name] = p.type;
-      }
-    }
-    return result;
-  } catch (err) {
-    console.error("[crawl] classify error:", err);
-    return {};
-  }
 }
 
 /* ---------- Route handler ---------- */

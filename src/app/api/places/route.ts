@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { classifyAndPersist } from "@/lib/classify";
 import type { Place } from "@/types/place";
 
 export async function GET(req: NextRequest) {
@@ -63,21 +64,26 @@ export async function GET(req: NextRequest) {
     })),
   ];
 
-  // Infer placeType from name/category/tags when DB value is NULL
-  function inferPlaceType(name: string, category?: string | null, tags?: string | null): string {
-    const text = `${name} ${category || ""} ${tags || ""}`.toLowerCase();
-    if (/카페|커피|coffee|혼카페|혼커|차모임/.test(text)) return "cafe";
-    // Only match specific bar-type names, not general "술모임" purpose tag
-    if (/이자카야|포차|호프집|와인바|칵테일바|칵테일|펍|pub|주점|주막|선술집/.test(text)) return "bar";
-    if (/빵집|빵|베이커리|bakery|제과점|도넛|케이크|베이글|bagel|크루아상|croissant|마카롱|타르트/.test(text)) return "bakery";
-    return "restaurant";
+  // Classify unclassified crawled places via LLM and persist to DB
+  const validCrawled = crawledPlaces.filter((cp) => cp.lat != null && cp.lng != null);
+  const unclassified = validCrawled.filter((cp) => !cp.placeType);
+  let llmTypeMap: Record<string, string> = {};
+  if (unclassified.length > 0) {
+    llmTypeMap = await classifyAndPersist(
+      unclassified.map((cp) => ({
+        id: cp.id,
+        name: cp.name,
+        category: cp.category,
+        tags: cp.tags,
+        description: cp.description,
+      }))
+    );
   }
 
-  // Convert crawled places to Place type using stored placeType
-  const validCrawled = crawledPlaces.filter((cp) => cp.lat != null && cp.lng != null);
+  // Convert crawled places to Place type
   const crawledAsPlaces: Place[] = validCrawled
     .map((cp) => {
-      const pType = cp.placeType || inferPlaceType(cp.name, cp.category, cp.tags);
+      const pType = cp.placeType || llmTypeMap[cp.name] || "restaurant";
       const base = {
         id: cp.id,
         name: cp.name,
