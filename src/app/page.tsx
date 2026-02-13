@@ -9,6 +9,7 @@ import PlaceList from "@/components/place/PlaceList";
 import PlaceDetail from "@/components/place/PlaceDetail";
 import SearchBar from "@/components/search/SearchBar";
 import SearchSuggestions from "@/components/search/SearchSuggestions";
+import FilterTags from "@/components/search/FilterTags";
 import BottomSheet from "@/components/ui/BottomSheet";
 import { useNaverMap } from "@/hooks/useNaverMap";
 import { useMapBounds, MIN_MARKER_ZOOM } from "@/hooks/useMapBounds";
@@ -30,7 +31,7 @@ export default function Home() {
     search,
     clearSearch,
   } = useSearch();
-  const { crawling, crawlResult, crawlError, crawl, setCrawlResult } =
+  const { crawling, crawlResult, crawlError, crawlProgress, crawl, setCrawlResult } =
     useCrawl();
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [crawlToast, setCrawlToast] = useState<string | null>(null);
@@ -155,6 +156,11 @@ export default function Home() {
           hasResult={!!searchResult}
         />
 
+        {/* Filter tags — only when not in search mode */}
+        {isLoaded && !searchResult && (
+          <FilterTags activeType={activeType} onTypeChange={setActiveType} />
+        )}
+
         <SearchSuggestions
           visible={showSuggestions}
           onSelect={handleSuggestionSelect}
@@ -163,7 +169,7 @@ export default function Home() {
         {/* Action buttons container — only when zoomed in */}
         {isLoaded && !searchResult && zoom >= MIN_MARKER_ZOOM && (
           <div className="absolute top-32 left-1/2 -translate-x-1/2 z-20">
-            <CrawlButton crawling={crawling} onCrawl={handleCrawl} />
+            <CrawlButton crawling={crawling} onCrawl={handleCrawl} crawlProgress={crawlProgress} />
           </div>
         )}
 
@@ -204,10 +210,10 @@ export default function Home() {
           </div>
         )}
 
-        {/* Regular markers (non-search mode) */}
+        {/* Regular markers (non-search mode, respects filter) */}
         {map && !searchResult && (
           <>
-            {allPlaces.map((place) => (
+            {places.map((place) => (
               <PlaceMarker
                 key={place.id}
                 map={map}
@@ -221,6 +227,45 @@ export default function Home() {
         {/* Route markers (search mode — shows selected course) */}
         {map && displayResult && displayResult.recommendations.length > 0 && (
           <RouteMarkers map={map} searchResult={displayResult} />
+        )}
+
+        {/* Current location button */}
+        {map && isLoaded && (
+          <button
+            className="absolute bottom-24 right-4 z-20 w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 active:bg-gray-100 transition-colors"
+            onClick={() => {
+              navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                  const { latitude, longitude } = pos.coords;
+                  map.setCenter(new naver.maps.LatLng(latitude, longitude));
+                  map.setZoom(15);
+                },
+                () => {
+                  alert("위치 정보를 가져올 수 없습니다.");
+                }
+              );
+            }}
+            aria-label="현재 위치로 이동"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-gray-700"
+            >
+              <circle cx="12" cy="12" r="4" />
+              <line x1="12" y1="2" x2="12" y2="6" />
+              <line x1="12" y1="18" x2="12" y2="22" />
+              <line x1="2" y1="12" x2="6" y2="12" />
+              <line x1="18" y1="12" x2="22" y2="12" />
+            </svg>
+          </button>
         )}
 
         {/* Loading overlay */}

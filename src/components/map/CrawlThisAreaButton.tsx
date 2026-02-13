@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import type { CrawlProgress } from "@/hooks/useCrawl";
 
 interface CrawlButtonProps {
   crawling: boolean;
   onCrawl: (keyword: string) => void;
+  crawlProgress: CrawlProgress | null;
 }
 
-export default function CrawlButton({ crawling, onCrawl }: CrawlButtonProps) {
+export default function CrawlButton({ crawling, onCrawl, crawlProgress }: CrawlButtonProps) {
   const [open, setOpen] = useState(false);
   const [keyword, setKeyword] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -39,6 +41,22 @@ export default function CrawlButton({ crawling, onCrawl }: CrawlButtonProps) {
         )}
         {crawling ? "크롤링 중..." : "추가 크롤링"}
       </button>
+
+      {/* Progress bar panel */}
+      {crawling && crawlProgress && (
+        <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-50
+          bg-white rounded-xl shadow-xl border border-gray-200 px-4 py-3 w-60">
+          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-orange-500 rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${crawlProgress.percent}%` }}
+            />
+          </div>
+          <p className="text-xs text-gray-600 mt-1.5 text-center truncate">
+            {crawlProgress.message}
+          </p>
+        </div>
+      )}
 
       {open && !crawling && (
         <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-50

@@ -63,27 +63,60 @@ export async function GET(req: NextRequest) {
     })),
   ];
 
-  // Convert crawled places to Restaurant type
+  // Convert crawled places to Place type, detecting cafes by name/category/tags
+  const CAFE_PATTERN = /카페|커피|coffee|cafe|베이커리|bakery|디저트|dessert/i;
+  const CAFE_CATEGORY_PATTERN = /혼카페|차모임/;
+
+  function isCafe(cp: { name: string; category: string | null; tags: string | null }): boolean {
+    if (CAFE_PATTERN.test(cp.name)) return true;
+    if (cp.category && CAFE_CATEGORY_PATTERN.test(cp.category)) return true;
+    if (cp.tags && CAFE_PATTERN.test(cp.tags)) return true;
+    if (cp.tags && CAFE_CATEGORY_PATTERN.test(cp.tags)) return true;
+    return false;
+  }
+
   const validCrawled = crawledPlaces.filter((cp) => cp.lat != null && cp.lng != null);
   const crawledAsPlaces: Place[] = validCrawled
-    .map((cp) => ({
-      id: cp.id,
-      name: cp.name,
-      description:
-        cp.description || cp.sources[0]?.snippet || "다이닝코드 크롤링",
-      lat: cp.lat!,
-      lng: cp.lng!,
-      type: "restaurant" as const,
-      category: cp.category || "맛집",
-      priceRange: cp.priceRange || "미정",
-      atmosphere: cp.atmosphere || "미정",
-      goodFor: cp.goodFor || "미정",
-      rating: cp.sources[0]?.rating || 0,
-      reviewCount: cp.sources[0]?.reviewCount || 0,
-      parkingAvailable: false,
-      nearbyParking: null,
-      tags: cp.tags ?? undefined,
-    }));
+    .map((cp) => {
+      const cafe = isCafe(cp);
+      return cafe
+        ? {
+            id: cp.id,
+            name: cp.name,
+            description:
+              cp.description || cp.sources[0]?.snippet || "다이닝코드 크롤링",
+            lat: cp.lat!,
+            lng: cp.lng!,
+            type: "cafe" as const,
+            specialty: cp.category || "카페",
+            priceRange: cp.priceRange || "미정",
+            atmosphere: cp.atmosphere || "미정",
+            goodFor: cp.goodFor || "미정",
+            rating: cp.sources[0]?.rating || 0,
+            reviewCount: cp.sources[0]?.reviewCount || 0,
+            parkingAvailable: false,
+            nearbyParking: null,
+            tags: cp.tags ?? undefined,
+          }
+        : {
+            id: cp.id,
+            name: cp.name,
+            description:
+              cp.description || cp.sources[0]?.snippet || "다이닝코드 크롤링",
+            lat: cp.lat!,
+            lng: cp.lng!,
+            type: "restaurant" as const,
+            category: cp.category || "맛집",
+            priceRange: cp.priceRange || "미정",
+            atmosphere: cp.atmosphere || "미정",
+            goodFor: cp.goodFor || "미정",
+            rating: cp.sources[0]?.rating || 0,
+            reviewCount: cp.sources[0]?.reviewCount || 0,
+            parkingAvailable: false,
+            nearbyParking: null,
+            tags: cp.tags ?? undefined,
+          };
+    });
 
   // Compute DiningCode ranking based on score within this result set
   const withScores = crawledAsPlaces

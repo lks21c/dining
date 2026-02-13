@@ -44,7 +44,7 @@ export default function PlaceDetail({ place, onClose, regionName }: PlaceDetailP
   }, [place.name, place.type]);
 
   return (
-    <div className="bg-white rounded-t-2xl shadow-xl">
+    <div className="bg-white rounded-t-2xl shadow-xl flex-1 overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-100">
         <div>

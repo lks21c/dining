@@ -60,7 +60,7 @@ export default function BottomSheet({ children, expandOnContent, fullHeight }: B
     <div
       className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl
         transition-[height] duration-300 ease-out z-40 flex flex-col
-        md:static md:w-[380px] md:h-full md:rounded-none md:shadow-xl md:border-r border-gray-200"
+        md:static md:w-[380px] md:!h-full md:rounded-none md:shadow-xl md:border-r border-gray-200"
       style={{ height: fullHeight ? "100vh" : `${heightPercent}vh` }}
     >
       {/* Drag handle (mobile only) */}
@@ -74,7 +74,7 @@ export default function BottomSheet({ children, expandOnContent, fullHeight }: B
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">{children}</div>
+      <div className="flex-1 min-h-0 flex flex-col">{children}</div>
     </div>
   );
 }

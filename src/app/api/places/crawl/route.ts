@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { crawlDiningCode } from "@/lib/agents/nodes/diningcode";
 import { deduplicatePlaces } from "@/lib/agents/utils/dedup";
 import { saveCrawledPlaces } from "@/lib/agents/utils/place-cache";
@@ -6,6 +6,14 @@ import { geocode } from "@/lib/geocode";
 import { prisma } from "@/lib/prisma";
 import { openrouter, MODEL, extractJson } from "@/lib/openrouter";
 import type { Bounds } from "@/types/place";
+
+/* ---------- SSE helper ---------- */
+
+const encoder = new TextEncoder();
+
+function send(controller: ReadableStreamDefaultController, data: Record<string, unknown>) {
+  controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+}
 
 /* ---------- Gemini 주차장 조회 ---------- */
 
@@ -108,97 +116,135 @@ async function saveParkingLots(lots: ParkingData[]): Promise<number> {
 /* ---------- Route handler ---------- */
 
 export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const { keyword, bounds } = body as { keyword: string; bounds?: Bounds };
+  const body = await req.json();
+  const { keyword, bounds } = body as { keyword: string; bounds?: Bounds };
 
-    if (!keyword || !keyword.trim()) {
-      return NextResponse.json(
-        { error: "keyword required" },
-        { status: 400 }
-      );
-    }
-
-    const trimmed = keyword.trim();
-    console.log("[crawl] keyword:", trimmed);
-
-    // 1. DiningCode 크롤링 + Gemini 주차장 조회 병렬 실행
-    const [rawPlaces, parkingLots] = await Promise.all([
-      crawlDiningCode(trimmed).catch((err) => {
-        console.error("[crawl] diningcode error:", err);
-        return [];
-      }),
-      fetchParkingByKeyword(trimmed).catch((err) => {
-        console.error("[crawl] parking error:", err);
-        return [];
-      }),
-    ]);
-
-    console.log("[crawl] diningcode:", rawPlaces.length, "parking:", parkingLots.length);
-
-    // 2. 주차장 DB 저장 (병렬)
-    const parkingPromise =
-      parkingLots.length > 0
-        ? saveParkingLots(parkingLots)
-        : Promise.resolve(0);
-
-    // 3. 맛집/카페 처리
-    let placeCount = 0;
-    if (rawPlaces.length > 0) {
-      const merged = deduplicatePlaces(rawPlaces);
-
-      const geocoded = await Promise.all(
-        merged.map(async (place) => {
-          if (place.lat && place.lng) return place;
-          if (!place.name) return place;
-          const searchQuery = place.address || `${trimmed} ${place.name}`;
-          const geo = await geocode(searchQuery);
-          if (geo) {
-            return {
-              ...place,
-              lat: geo.lat,
-              lng: geo.lng,
-              address: place.address || geo.address,
-            };
-          }
-          return place;
-        })
-      );
-
-      let results = geocoded.filter((p) => p.lat && p.lng);
-
-      if (bounds && bounds.swLat && bounds.neLat) {
-        const inBounds = results.filter(
-          (p) =>
-            p.lat! >= bounds.swLat &&
-            p.lat! <= bounds.neLat &&
-            p.lng! >= bounds.swLng &&
-            p.lng! <= bounds.neLng
-        );
-        if (inBounds.length > 0) {
-          results = inBounds;
-        }
-      }
-
-      if (results.length > 0) {
-        await saveCrawledPlaces(results);
-      }
-      placeCount = results.length;
-    }
-
-    const parkingAdded = await parkingPromise;
-    console.log("[crawl] saved places:", placeCount, "parking added:", parkingAdded);
-
-    return NextResponse.json({
-      count: placeCount,
-      parkingAdded,
-      keyword: trimmed,
+  if (!keyword || !keyword.trim()) {
+    return new Response(JSON.stringify({ error: "keyword required" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
     });
-  } catch (error) {
-    console.error("Crawl API error:", error);
-    return NextResponse.json(
-      { error: "크롤링 중 오류가 발생했습니다." },
-      { status: 500 }
-    );
   }
+
+  const trimmed = keyword.trim();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        console.log("[crawl] keyword:", trimmed);
+        send(controller, { step: "searching", message: "맛집 검색 중..." });
+
+        // 1. DiningCode + Parking 병렬
+        const [rawPlaces, parkingLots] = await Promise.all([
+          crawlDiningCode(trimmed).catch((err) => {
+            console.error("[crawl] diningcode error:", err);
+            return [];
+          }),
+          fetchParkingByKeyword(trimmed).catch((err) => {
+            console.error("[crawl] parking error:", err);
+            return [];
+          }),
+        ]);
+
+        console.log("[crawl] diningcode:", rawPlaces.length, "parking:", parkingLots.length);
+        send(controller, {
+          step: "fetched",
+          message: `맛집 ${rawPlaces.length}개, 주차장 ${parkingLots.length}개 발견`,
+          places: rawPlaces.length,
+          parking: parkingLots.length,
+        });
+
+        // 2. 주차장 DB 저장 (병렬)
+        const parkingPromise =
+          parkingLots.length > 0
+            ? saveParkingLots(parkingLots)
+            : Promise.resolve(0);
+
+        // 3. 맛집/카페 처리
+        let placeCount = 0;
+        if (rawPlaces.length > 0) {
+          const merged = deduplicatePlaces(rawPlaces);
+
+          // geocoding with progress
+          const needsGeocode = merged.filter((p) => !(p.lat && p.lng) && p.name);
+          const total = needsGeocode.length;
+          let progress = 0;
+
+          const geocoded = await Promise.all(
+            merged.map(async (place) => {
+              if (place.lat && place.lng) return place;
+              if (!place.name) return place;
+              const searchQuery = place.address || `${trimmed} ${place.name}`;
+              const geo = await geocode(searchQuery);
+              progress++;
+              if (total > 0) {
+                send(controller, {
+                  step: "geocoding",
+                  message: "위치 확인 중...",
+                  progress,
+                  total,
+                });
+              }
+              if (geo) {
+                return {
+                  ...place,
+                  lat: geo.lat,
+                  lng: geo.lng,
+                  address: place.address || geo.address,
+                };
+              }
+              return place;
+            })
+          );
+
+          let results = geocoded.filter((p) => p.lat && p.lng);
+
+          if (bounds && bounds.swLat && bounds.neLat) {
+            const inBounds = results.filter(
+              (p) =>
+                p.lat! >= bounds.swLat &&
+                p.lat! <= bounds.neLat &&
+                p.lng! >= bounds.swLng &&
+                p.lng! <= bounds.neLng
+            );
+            if (inBounds.length > 0) {
+              results = inBounds;
+            }
+          }
+
+          send(controller, { step: "saving", message: "저장 중..." });
+
+          if (results.length > 0) {
+            await saveCrawledPlaces(results);
+          }
+          placeCount = results.length;
+        } else {
+          send(controller, { step: "saving", message: "저장 중..." });
+        }
+
+        const parkingAdded = await parkingPromise;
+        console.log("[crawl] saved places:", placeCount, "parking added:", parkingAdded);
+
+        send(controller, {
+          step: "done",
+          count: placeCount,
+          parkingAdded,
+          keyword: trimmed,
+        });
+      } catch (error) {
+        console.error("Crawl API error:", error);
+        send(controller, { step: "error", message: "크롤링 중 오류가 발생했습니다." });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
 }
