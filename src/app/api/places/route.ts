@@ -63,59 +63,47 @@ export async function GET(req: NextRequest) {
     })),
   ];
 
-  // Convert crawled places to Place type, detecting cafes by name/category/tags
-  const CAFE_PATTERN = /카페|커피|coffee|cafe|베이커리|bakery|디저트|dessert/i;
-  const CAFE_CATEGORY_PATTERN = /혼카페|차모임/;
-
-  function isCafe(cp: { name: string; category: string | null; tags: string | null }): boolean {
-    if (CAFE_PATTERN.test(cp.name)) return true;
-    if (cp.category && CAFE_CATEGORY_PATTERN.test(cp.category)) return true;
-    if (cp.tags && CAFE_PATTERN.test(cp.tags)) return true;
-    if (cp.tags && CAFE_CATEGORY_PATTERN.test(cp.tags)) return true;
-    return false;
+  // Infer placeType from name/category/tags when DB value is NULL
+  function inferPlaceType(name: string, category?: string | null, tags?: string | null): string {
+    const text = `${name} ${category || ""} ${tags || ""}`.toLowerCase();
+    if (/카페|커피|coffee|혼카페|혼커|차모임/.test(text)) return "cafe";
+    // Only match specific bar-type names, not general "술모임" purpose tag
+    if (/이자카야|포차|호프집|와인바|칵테일바|칵테일|펍|pub|주점|주막|선술집/.test(text)) return "bar";
+    if (/빵집|빵|베이커리|bakery|제과점|도넛|케이크|베이글|bagel|크루아상|croissant|마카롱|타르트/.test(text)) return "bakery";
+    return "restaurant";
   }
 
+  // Convert crawled places to Place type using stored placeType
   const validCrawled = crawledPlaces.filter((cp) => cp.lat != null && cp.lng != null);
   const crawledAsPlaces: Place[] = validCrawled
     .map((cp) => {
-      const cafe = isCafe(cp);
-      return cafe
-        ? {
-            id: cp.id,
-            name: cp.name,
-            description:
-              cp.description || cp.sources[0]?.snippet || "다이닝코드 크롤링",
-            lat: cp.lat!,
-            lng: cp.lng!,
-            type: "cafe" as const,
-            specialty: cp.category || "카페",
-            priceRange: cp.priceRange || "미정",
-            atmosphere: cp.atmosphere || "미정",
-            goodFor: cp.goodFor || "미정",
-            rating: cp.sources[0]?.rating || 0,
-            reviewCount: cp.sources[0]?.reviewCount || 0,
-            parkingAvailable: false,
-            nearbyParking: null,
-            tags: cp.tags ?? undefined,
-          }
-        : {
-            id: cp.id,
-            name: cp.name,
-            description:
-              cp.description || cp.sources[0]?.snippet || "다이닝코드 크롤링",
-            lat: cp.lat!,
-            lng: cp.lng!,
-            type: "restaurant" as const,
-            category: cp.category || "맛집",
-            priceRange: cp.priceRange || "미정",
-            atmosphere: cp.atmosphere || "미정",
-            goodFor: cp.goodFor || "미정",
-            rating: cp.sources[0]?.rating || 0,
-            reviewCount: cp.sources[0]?.reviewCount || 0,
-            parkingAvailable: false,
-            nearbyParking: null,
-            tags: cp.tags ?? undefined,
-          };
+      const pType = cp.placeType || inferPlaceType(cp.name, cp.category, cp.tags);
+      const base = {
+        id: cp.id,
+        name: cp.name,
+        description: cp.description || cp.sources[0]?.snippet || "다이닝코드 크롤링",
+        lat: cp.lat!,
+        lng: cp.lng!,
+        priceRange: cp.priceRange || "미정",
+        atmosphere: cp.atmosphere || "미정",
+        goodFor: cp.goodFor || "미정",
+        rating: cp.sources[0]?.rating || 0,
+        reviewCount: cp.sources[0]?.reviewCount || 0,
+        parkingAvailable: false,
+        nearbyParking: null,
+        tags: cp.tags ?? undefined,
+      };
+
+      switch (pType) {
+        case "cafe":
+          return { ...base, type: "cafe" as const, specialty: cp.category || "카페" };
+        case "bar":
+          return { ...base, type: "bar" as const, category: cp.category || "술집" };
+        case "bakery":
+          return { ...base, type: "bakery" as const, specialty: cp.category || "빵집" };
+        default:
+          return { ...base, type: "restaurant" as const, category: cp.category || "맛집" };
+      }
     });
 
   // Compute DiningCode ranking based on score within this result set
@@ -133,7 +121,7 @@ export async function GET(req: NextRequest) {
     .sort((a, b) => b.score - a.score);
 
   withScores.forEach((x, i) => {
-    if (x.place.type === "restaurant" || x.place.type === "cafe") {
+    if (x.place.type !== "parking") {
       x.place.diningcodeRank = i + 1;
     }
   });

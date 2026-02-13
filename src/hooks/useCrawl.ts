@@ -77,8 +77,11 @@ export function useCrawl() {
                 setCrawlProgress({ step: evt.step, message: evt.message, percent: Math.min(geo, 70) });
                 break;
               }
+              case "classifying":
+                setCrawlProgress({ step: evt.step, message: evt.message, percent: 75 });
+                break;
               case "saving":
-                setCrawlProgress({ step: evt.step, message: evt.message, percent: 80 });
+                setCrawlProgress({ step: evt.step, message: evt.message, percent: 85 });
                 break;
               case "done":
                 setCrawlProgress({ step: "done", message: "완료!", percent: 100 });

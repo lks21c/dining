@@ -11,6 +11,8 @@ interface MenuData {
 const TYPE_LABELS: Record<string, string> = {
   restaurant: "맛집",
   cafe: "카페",
+  bar: "술집",
+  bakery: "빵집",
   parking: "주차장",
 };
 
@@ -59,10 +61,10 @@ export default function PlaceDetail({ place, onClose, regionName }: PlaceDetailP
               {TYPE_LABELS[place.type]}
             </span>
           </div>
-          {place.type === "restaurant" && (
+          {(place.type === "restaurant" || place.type === "bar") && (
             <p className="text-sm text-gray-500 mt-0.5">{place.category}</p>
           )}
-          {place.type === "cafe" && (
+          {(place.type === "cafe" || place.type === "bakery") && (
             <p className="text-sm text-gray-500 mt-0.5">{place.specialty}</p>
           )}
         </div>

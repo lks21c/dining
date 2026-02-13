@@ -1,4 +1,4 @@
-export type PlaceType = "restaurant" | "cafe" | "parking";
+export type PlaceType = "restaurant" | "cafe" | "bar" | "bakery" | "parking";
 
 export interface BasePlace {
   id: string;
@@ -51,7 +51,35 @@ export interface ParkingLot extends BasePlace {
   operatingHours: string;
 }
 
-export type Place = Restaurant | Cafe | ParkingLot;
+export interface Bar extends BasePlace {
+  type: "bar";
+  category: string;
+  priceRange: string;
+  atmosphere: string;
+  goodFor: string;
+  rating: number;
+  reviewCount: number;
+  parkingAvailable: boolean;
+  nearbyParking: string | null;
+  tags?: string;
+  diningcodeRank?: number;
+}
+
+export interface Bakery extends BasePlace {
+  type: "bakery";
+  specialty: string;
+  priceRange: string;
+  atmosphere: string;
+  goodFor: string;
+  rating: number;
+  reviewCount: number;
+  parkingAvailable: boolean;
+  nearbyParking: string | null;
+  tags?: string;
+  diningcodeRank?: number;
+}
+
+export type Place = Restaurant | Cafe | Bar | Bakery | ParkingLot;
 
 export interface Bounds {
   swLat: number;

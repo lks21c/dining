@@ -6,6 +6,7 @@ export const openrouter = new OpenAI({
 });
 
 export const MODEL = process.env.OPENROUTER_MODEL || "google/gemini-3-pro-preview";
+export const FLASH_MODEL = process.env.OPENROUTER_FLASH_MODEL || "google/gemini-2.5-flash";
 
 /** Strip markdown code fences that Gemini sometimes wraps around JSON */
 export function extractJson(text: string): string {

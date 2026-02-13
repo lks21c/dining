@@ -6,6 +6,8 @@ const FILTERS: { label: string; value: PlaceType | "all" }[] = [
   { label: "전체", value: "all" },
   { label: "맛집", value: "restaurant" },
   { label: "카페", value: "cafe" },
+  { label: "술집", value: "bar" },
+  { label: "빵집", value: "bakery" },
   { label: "주차", value: "parking" },
 ];
 

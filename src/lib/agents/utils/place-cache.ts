@@ -57,6 +57,7 @@ interface MergedPlaceForSave {
   lat?: number;
   lng?: number;
   tags?: string;
+  placeType?: string;
   sources: {
     source: string;
     sourceUrl?: string;
@@ -91,6 +92,7 @@ export async function saveCrawledPlaces(
             lat: place.lat ?? existing.lat,
             lng: place.lng ?? existing.lng,
             tags: place.tags ?? existing.tags,
+            placeType: place.placeType ?? existing.placeType,
           },
         });
 
@@ -133,6 +135,7 @@ export async function saveCrawledPlaces(
             lat: place.lat,
             lng: place.lng,
             tags: place.tags,
+            placeType: place.placeType,
             sources: {
               create: place.sources.map((src) => ({
                 source: src.source,

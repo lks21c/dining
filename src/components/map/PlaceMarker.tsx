@@ -17,8 +17,8 @@ function getTag(place: Place): string {
   if (place.type === "parking") return "";
   // tags 우선 → category/specialty 폴백
   if ("tags" in place && place.tags) return place.tags;
-  if (place.type === "restaurant") return place.category || "";
-  if (place.type === "cafe") return place.specialty || "";
+  if (place.type === "restaurant" || place.type === "bar") return place.category || "";
+  if (place.type === "cafe" || place.type === "bakery") return place.specialty || "";
   return "";
 }
 

@@ -12,10 +12,10 @@ function compressPlace(
 
   const distStr = anchor ? `|${calcDistanceM(anchor.lat, anchor.lng, place.lat, place.lng)}m` : "";
 
-  if (place.type === "restaurant") {
+  if (place.type === "restaurant" || place.type === "bar") {
     return `${id}|${place.name}|${place.category}|${place.priceRange}|${place.atmosphere}|${place.goodFor}|★${place.rating}|주차${place.parkingAvailable ? "O" : "X"}${distStr}`;
   }
-  if (place.type === "cafe") {
+  if (place.type === "cafe" || place.type === "bakery") {
     return `${id}|${place.name}|${place.specialty}|${place.priceRange}|${place.atmosphere}|${place.goodFor}|★${place.rating}|주차${place.parkingAvailable ? "O" : "X"}${distStr}`;
   }
   return `${id}|${place.name}|${place.parkingType}|${place.hourlyRate}원/시|${place.capacity}대|${place.operatingHours}${distStr}`;

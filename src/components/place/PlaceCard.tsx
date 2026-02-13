@@ -5,12 +5,16 @@ import type { Place } from "@/types/place";
 const TYPE_LABELS: Record<string, string> = {
   restaurant: "맛집",
   cafe: "카페",
+  bar: "술집",
+  bakery: "빵집",
   parking: "주차장",
 };
 
 const TYPE_COLORS: Record<string, string> = {
   restaurant: "bg-red-100 text-red-700",
   cafe: "bg-amber-100 text-amber-800",
+  bar: "bg-purple-100 text-purple-700",
+  bakery: "bg-orange-100 text-orange-700",
   parking: "bg-blue-100 text-blue-700",
 };
 
@@ -28,9 +32,9 @@ export default function PlaceCard({ place, order, reason, onClick, expanded }: P
   const priceRange =
     place.type !== "parking" && "priceRange" in place ? place.priceRange : null;
   const subtitle =
-    place.type === "restaurant"
+    place.type === "restaurant" || place.type === "bar"
       ? place.category
-      : place.type === "cafe"
+      : place.type === "cafe" || place.type === "bakery"
       ? place.specialty
       : `${place.parkingType} · ${place.capacity}대`;
 
@@ -51,6 +55,10 @@ export default function PlaceCard({ place, order, reason, onClick, expanded }: P
                   ? "#EF4444"
                   : place.type === "cafe"
                   ? "#92400E"
+                  : place.type === "bar"
+                  ? "#7C3AED"
+                  : place.type === "bakery"
+                  ? "#EA580C"
                   : "#3B82F6",
             }}
           >
