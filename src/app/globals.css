@@ -4,13 +4,42 @@
   --font-sans: var(--font-geist-sans);
 }
 
+:root {
+  --sai-top: env(safe-area-inset-top, 0px);
+  --sai-bottom: env(safe-area-inset-bottom, 0px);
+  --sai-left: env(safe-area-inset-left, 0px);
+  --sai-right: env(safe-area-inset-right, 0px);
+}
+
 html,
 body {
   height: 100%;
   margin: 0;
   padding: 0;
   overflow: hidden;
+  overscroll-behavior: none;
   font-family: var(--font-sans), sans-serif;
+}
+
+.pt-safe {
+  padding-top: var(--sai-top);
+}
+
+.pb-safe {
+  padding-bottom: var(--sai-bottom);
+}
+
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
 .line-clamp-2 {

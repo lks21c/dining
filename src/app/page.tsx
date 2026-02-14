@@ -8,8 +8,12 @@ import CrawlButton from "@/components/map/CrawlThisAreaButton";
 import PlaceList from "@/components/place/PlaceList";
 import PlaceDetail from "@/components/place/PlaceDetail";
 import SearchBar from "@/components/search/SearchBar";
-import SearchSuggestions from "@/components/search/SearchSuggestions";
 import FilterTags from "@/components/search/FilterTags";
+import RegionSearch from "@/components/search/RegionSearch";
+import HamburgerButton from "@/components/menu/HamburgerButton";
+import NavigationDrawer from "@/components/menu/NavigationDrawer";
+import AllPlacesView from "@/components/menu/AllPlacesPanel";
+import type { PageMode } from "@/components/menu/NavigationDrawer";
 import BottomSheet from "@/components/ui/BottomSheet";
 import { useNaverMap } from "@/hooks/useNaverMap";
 import { useMapBounds, MIN_MARKER_ZOOM } from "@/hooks/useMapBounds";
@@ -37,6 +41,17 @@ export default function Home() {
   const [crawlToast, setCrawlToast] = useState<string | null>(null);
   const [activeCourse, setActiveCourse] = useState(0);
   const [regionName, setRegionName] = useState<string | undefined>();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [pageMode, setPageMode] = useState<PageMode>("search");
+
+  // Compute displayRank for the selected place based on filtered list position
+  const selectedDisplayRank = useMemo(() => {
+    if (!selectedPlace || !("diningcodeRank" in selectedPlace) || selectedPlace.diningcodeRank == null) {
+      return undefined;
+    }
+    const idx = places.findIndex((p) => p.id === selectedPlace.id);
+    return idx >= 0 ? idx + 1 : undefined;
+  }, [selectedPlace, places]);
 
   // Reset active course when search result changes, persist region name
   useEffect(() => {
@@ -69,14 +84,6 @@ export default function Home() {
     search(query, bounds);
   }, [search, query, bounds]);
 
-  const handleSuggestionSelect = useCallback(
-    (suggestion: string) => {
-      setQuery(suggestion);
-      search(suggestion, bounds);
-    },
-    [setQuery, search, bounds]
-  );
-
   const handlePlaceClick = useCallback(
     (place: Place) => {
       setSelectedPlace(place);
@@ -87,11 +94,34 @@ export default function Home() {
     [map]
   );
 
+  const handleGridPlaceClick = useCallback(
+    (place: Place) => {
+      setPageMode("search");
+      setSelectedPlace(place);
+      if (map) {
+        map.panTo(new naver.maps.LatLng(place.lat, place.lng));
+        map.setZoom(16);
+      }
+    },
+    [map]
+  );
+
   const handleClearSearch = useCallback(() => {
     clearSearch();
     setSelectedPlace(null);
     setActiveCourse(0);
   }, [clearSearch]);
+
+  const handleRegionSelect = useCallback(
+    (region: { name: string; lat: number; lng: number }) => {
+      if (map) {
+        map.panTo(new naver.maps.LatLng(region.lat, region.lng));
+        map.setZoom(15);
+      }
+      setRegionName(region.name);
+    },
+    [map]
+  );
 
   const handleCrawl = useCallback(
     (keyword: string) => {
@@ -139,10 +169,24 @@ export default function Home() {
     }
   }, [crawlToast]);
 
-  const showSuggestions = !query && !searchResult && isLoaded;
 
   return (
     <div className="h-dvh w-full flex flex-col md:flex-row relative overflow-hidden">
+      {/* Hamburger button — always visible on both modes */}
+      <HamburgerButton onClick={() => setDrawerOpen(true)} />
+
+      {/* Navigation Drawer */}
+      <NavigationDrawer
+        open={drawerOpen}
+        currentMode={pageMode}
+        onSelectMode={setPageMode}
+        onClose={() => setDrawerOpen(false)}
+      />
+
+      {pageMode === "places" ? (
+        <AllPlacesView onPlaceClick={handleGridPlaceClick} />
+      ) : (
+      <>
       {/* Map area */}
       <div className="flex-1 relative">
         <NaverMap />
@@ -156,26 +200,33 @@ export default function Home() {
           hasResult={!!searchResult}
         />
 
-        {/* Filter tags — only when not in search mode */}
+        {/* Filter tags + Region search — only when not in search mode */}
         {isLoaded && !searchResult && (
-          <FilterTags activeType={activeType} onTypeChange={setActiveType} />
+          <div
+            className="absolute left-0 right-0 px-3 z-30 flex items-center gap-2"
+            style={{ top: "calc(var(--sai-top) + 4rem)" }}
+          >
+            <RegionSearch onSelect={handleRegionSelect} />
+            <FilterTags activeType={activeType} onTypeChange={setActiveType} />
+          </div>
         )}
-
-        <SearchSuggestions
-          visible={showSuggestions}
-          onSelect={handleSuggestionSelect}
-        />
 
         {/* Action buttons container — only when zoomed in */}
         {isLoaded && !searchResult && zoom >= MIN_MARKER_ZOOM && (
-          <div className="absolute top-32 left-1/2 -translate-x-1/2 z-20">
+          <div
+            className="absolute left-1/2 -translate-x-1/2 z-30"
+            style={{ top: "calc(var(--sai-top) + 6.5rem)" }}
+          >
             <CrawlButton crawling={crawling} onCrawl={handleCrawl} crawlProgress={crawlProgress} />
           </div>
         )}
 
         {/* Zoom hint — when zoomed out */}
         {isLoaded && !searchResult && zoom < MIN_MARKER_ZOOM && (
-          <div className="absolute top-32 left-1/2 -translate-x-1/2 z-20">
+          <div
+            className="absolute left-1/2 -translate-x-1/2 z-20"
+            style={{ top: "calc(var(--sai-top) + 6.5rem)" }}
+          >
             <div className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow-md text-sm text-gray-500 whitespace-nowrap">
               지도를 확대하면 맛집이 표시됩니다
             </div>
@@ -184,7 +235,7 @@ export default function Home() {
 
         {/* LLM warning toast */}
         {searchResult?.warning && (
-          <div className="absolute bottom-4 left-4 right-4 z-30 md:left-auto md:right-4 md:w-96">
+          <div className="fixed bottom-[calc(42dvh+0.75rem)] left-4 right-4 z-45 md:absolute md:bottom-4 md:left-auto md:right-4 md:w-96">
             <div className="bg-amber-50 border border-amber-300 text-amber-800 text-sm px-4 py-3 rounded-lg shadow-lg flex items-start gap-2">
               <span className="shrink-0 mt-0.5">⚠️</span>
               <span>{searchResult.warning}</span>
@@ -194,7 +245,7 @@ export default function Home() {
 
         {/* Error toast */}
         {(error || crawlError) && (
-          <div className="absolute bottom-4 left-4 right-4 z-30 md:left-auto md:right-4 md:w-80">
+          <div className="fixed bottom-[calc(42dvh+0.75rem)] left-4 right-4 z-45 md:absolute md:bottom-4 md:left-auto md:right-4 md:w-80">
             <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg shadow-lg">
               {error || crawlError}
             </div>
@@ -203,8 +254,8 @@ export default function Home() {
 
         {/* Crawl success toast */}
         {crawlToast && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30">
-            <div className="bg-orange-50 border border-orange-200 text-orange-800 text-sm px-4 py-3 rounded-lg shadow-lg whitespace-nowrap">
+          <div className="fixed bottom-[calc(42dvh+0.75rem)] left-4 right-4 z-45 md:absolute md:bottom-4 md:left-1/2 md:-translate-x-1/2 md:left-auto md:right-auto md:w-auto">
+            <div className="bg-orange-50 border border-orange-200 text-orange-800 text-sm px-4 py-3 rounded-lg shadow-lg text-center">
               {crawlToast}
             </div>
           </div>
@@ -213,12 +264,13 @@ export default function Home() {
         {/* Regular markers (non-search mode, respects filter) */}
         {map && !searchResult && (
           <>
-            {places.map((place) => (
+            {places.map((place, index) => (
               <PlaceMarker
                 key={place.id}
                 map={map}
                 place={place}
                 onClick={handlePlaceClick}
+                displayRank={"diningcodeRank" in place && place.diningcodeRank != null ? index + 1 : undefined}
               />
             ))}
           </>
@@ -232,7 +284,7 @@ export default function Home() {
         {/* Current location button */}
         {map && isLoaded && (
           <button
-            className="absolute bottom-24 right-4 z-20 w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 active:bg-gray-100 transition-colors"
+            className="fixed right-4 z-20 w-11 h-11 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 active:bg-gray-100 transition-colors bottom-[calc(42dvh+3.5rem)] md:absolute md:bottom-24"
             onClick={() => {
               navigator.geolocation.getCurrentPosition(
                 (pos) => {
@@ -286,6 +338,7 @@ export default function Home() {
             place={selectedPlace}
             onClose={() => setSelectedPlace(null)}
             regionName={regionName}
+            displayRank={selectedDisplayRank}
           />
         ) : (
           <PlaceList
@@ -300,6 +353,8 @@ export default function Home() {
           />
         )}
       </BottomSheet>
+      </>
+      )}
     </div>
   );
 }

@@ -71,12 +71,12 @@ export default function PlaceList({
     <div className="flex flex-col h-full">
       {/* Type tabs - only show when not in search mode */}
       {!hasCourses && (
-        <div className="flex gap-1 px-4 py-2 border-b border-gray-100 overflow-x-auto">
+        <div className="flex gap-1 px-4 py-2 border-b border-gray-100 overflow-x-auto scrollbar-hide">
           {TABS.map((tab) => (
             <button
               key={tab.value}
               onClick={() => onTypeChange(tab.value)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors
+              className={`px-3 py-2 min-h-[44px] rounded-full text-xs font-medium whitespace-nowrap transition-colors
                 ${
                   activeType === tab.value
                     ? "bg-gray-900 text-white"
@@ -118,7 +118,7 @@ export default function PlaceList({
             )}
 
             {/* Course tabs */}
-            <div className="flex gap-1.5 px-4 py-3 border-b border-gray-100 overflow-x-auto">
+            <div className="flex gap-1.5 px-4 py-3 border-b border-gray-100 overflow-x-auto scrollbar-hide">
               {searchResult.courses.map((course, ci) => {
                 const color = COURSE_COLORS[ci % COURSE_COLORS.length];
                 const isActive = activeCourse === ci;
@@ -126,7 +126,7 @@ export default function PlaceList({
                   <button
                     key={course.courseNumber}
                     onClick={() => onCourseSelect(ci)}
-                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors
+                    className={`flex-shrink-0 px-3 py-2 min-h-[44px] rounded-full text-xs font-medium transition-colors
                       ${isActive
                         ? `${color.badge} text-white`
                         : `${color.bg} ${color.text} ${color.border} border`
@@ -177,8 +177,13 @@ export default function PlaceList({
           </div>
         ) : places.length > 0 ? (
           <div className="px-2 py-2 space-y-1">
-            {places.map((place) => (
-              <PlaceCard key={place.id} place={place} onClick={onPlaceClick} />
+            {places.map((place, index) => (
+              <PlaceCard
+                key={place.id}
+                place={place}
+                onClick={onPlaceClick}
+                displayRank={"diningcodeRank" in place && place.diningcodeRank != null ? index + 1 : undefined}
+              />
             ))}
           </div>
         ) : (

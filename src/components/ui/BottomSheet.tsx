@@ -3,9 +3,9 @@
 import { useState, useRef, useCallback, useEffect, type ReactNode } from "react";
 
 const SNAP_POINTS = {
-  closed: 60,
-  half: 50,
-  full: 90,
+  collapsed: 10,
+  half: 42,
+  full: 92,
 };
 
 interface BottomSheetProps {
@@ -39,7 +39,7 @@ export default function BottomSheet({ children, expandOnContent, fullHeight }: B
     const deltaPercent = (deltaY / window.innerHeight) * 100;
     const newHeight = Math.min(
       SNAP_POINTS.full,
-      Math.max(SNAP_POINTS.closed, startHeight.current + deltaPercent)
+      Math.max(SNAP_POINTS.collapsed, startHeight.current + deltaPercent)
     );
     setHeightPercent(newHeight);
   }, []);
@@ -59,22 +59,22 @@ export default function BottomSheet({ children, expandOnContent, fullHeight }: B
   return (
     <div
       className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl
-        transition-[height] duration-300 ease-out z-40 flex flex-col
+        transition-[height] duration-300 ease-out z-40 flex flex-col will-change-[height]
         md:static md:w-[380px] md:!h-full md:rounded-none md:shadow-xl md:border-r border-gray-200"
-      style={{ height: fullHeight ? "100vh" : `${heightPercent}vh` }}
+      style={{ height: fullHeight ? "100dvh" : `${heightPercent}dvh` }}
     >
       {/* Drag handle (mobile only) */}
       <div
-        className="flex justify-center py-2 cursor-grab active:cursor-grabbing md:hidden"
+        className="flex justify-center items-center min-h-[44px] cursor-grab active:cursor-grabbing md:hidden"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        <div className="w-10 h-1 bg-gray-300 rounded-full" />
+        <div className="w-12 h-1.5 bg-gray-300 rounded-full" />
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-h-0 flex flex-col">{children}</div>
+      <div className="flex-1 min-h-0 flex flex-col pb-safe">{children}</div>
     </div>
   );
 }

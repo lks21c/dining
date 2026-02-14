@@ -34,7 +34,7 @@ export default function CrawlButton({ crawling, onCrawl, crawlProgress }: CrawlB
         className="bg-orange-500 text-white px-4 py-2 rounded-full shadow-lg
           text-sm font-medium hover:bg-orange-600 active:bg-orange-700
           transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed
-          flex items-center gap-2"
+          flex items-center gap-2 min-h-[44px]"
       >
         {crawling && (
           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -44,8 +44,9 @@ export default function CrawlButton({ crawling, onCrawl, crawlProgress }: CrawlB
 
       {/* Progress bar panel */}
       {crawling && crawlProgress && (
-        <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-50
-          bg-white rounded-xl shadow-xl border border-gray-200 px-4 py-3 w-60">
+        <div className="fixed inset-x-4 bottom-[calc(42dvh+1rem)] z-50
+          bg-white rounded-xl shadow-xl border border-gray-200 px-4 py-3
+          md:absolute md:inset-x-auto md:bottom-auto md:top-full md:mt-2 md:left-1/2 md:-translate-x-1/2 md:w-60">
           <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
             <div
               className="h-full bg-orange-500 rounded-full transition-all duration-500 ease-out"
@@ -59,8 +60,9 @@ export default function CrawlButton({ crawling, onCrawl, crawlProgress }: CrawlB
       )}
 
       {open && !crawling && (
-        <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-50
-          bg-white rounded-xl shadow-xl border border-gray-200 p-3 w-72">
+        <div className="fixed inset-x-4 bottom-[calc(42dvh+1rem)] z-50
+          bg-white rounded-xl shadow-xl border border-gray-200 p-3
+          md:absolute md:inset-x-auto md:bottom-auto md:top-full md:mt-2 md:left-1/2 md:-translate-x-1/2 md:w-72">
           <p className="text-xs text-gray-500 mb-2">
             검색 키워드를 입력하세요 (예: 여의도 맛집, 강남 카페)
           </p>
@@ -85,7 +87,7 @@ export default function CrawlButton({ crawling, onCrawl, crawlProgress }: CrawlB
               disabled={!keyword.trim()}
               className="px-3 py-2 bg-orange-500 text-white text-sm rounded-lg
                 hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed
-                transition-colors whitespace-nowrap"
+                transition-colors whitespace-nowrap min-h-[44px]"
             >
               검색
             </button>

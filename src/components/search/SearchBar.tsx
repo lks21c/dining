@@ -30,14 +30,15 @@ export default function SearchBar({
   return (
     <form
       onSubmit={handleSubmit}
-      className="absolute top-3 left-3 right-3 z-30"
+      className="absolute left-[3.75rem] right-3 z-30"
+      style={{ top: "calc(var(--sai-top) + 0.75rem)" }}
     >
       <div className="relative flex items-center bg-white rounded-xl shadow-lg border border-gray-200">
         <input
           type="text"
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
-          placeholder="예: 40대 부부 강남 이탈리안 데이트"
+          placeholder="예: 강남 이탈리안 데이트"
           className="flex-1 px-4 py-3 rounded-xl text-sm bg-transparent
             outline-none placeholder-gray-400 text-gray-900"
         />
@@ -52,7 +53,8 @@ export default function SearchBar({
             type="button"
             onClick={onClear}
             className="px-3 py-1 mr-1 text-xs text-gray-500 hover:text-gray-700
-              hover:bg-gray-100 rounded-lg transition-colors"
+              hover:bg-gray-100 rounded-lg transition-colors min-w-[44px] min-h-[44px]
+              flex items-center justify-center"
           >
             초기화
           </button>
@@ -60,7 +62,7 @@ export default function SearchBar({
         <button
           type="submit"
           disabled={searching || !query.trim()}
-          className="px-4 py-3 text-indigo-600 font-medium text-sm
+          className="px-4 py-3 text-indigo-600 font-medium text-sm min-h-[44px]
             disabled:text-gray-300 hover:text-indigo-800 transition-colors"
         >
           검색

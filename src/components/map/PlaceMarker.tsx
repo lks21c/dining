@@ -31,15 +31,15 @@ function escapeHtml(s: string): string {
 }
 
 /** 말풍선 마커 (restaurant / cafe) */
-function buildBubbleIcon(place: Place, color: string): { content: string; anchor: naver.maps.Point } {
+function buildBubbleIcon(place: Place, color: string, displayRank?: number): { content: string; anchor: naver.maps.Point } {
   const name = escapeHtml(place.name);
   const tag = getTag(place);
   const tagHtml = tag
     ? `<span style="color:#999;font-weight:400;"> ${escapeHtml(tag)}</span>`
     : "";
   const rankHtml =
-    "diningcodeRank" in place && place.diningcodeRank != null
-      ? `<span style="background:#EA580C;color:white;font-weight:700;font-size:10px;padding:1px 5px;border-radius:3px;margin-right:4px;">${place.diningcodeRank}위</span>`
+    displayRank != null
+      ? `<span style="background:#EA580C;color:white;font-weight:700;font-size:10px;padding:1px 5px;border-radius:3px;margin-right:4px;">${displayRank}위</span>`
       : "";
 
   // anchor (0,0) = wrapper origin = 꼭지점 위치 → 말풍선은 translate로 위에 띄움
@@ -91,9 +91,10 @@ interface PlaceMarkerProps {
   map: naver.maps.Map;
   place: Place;
   onClick?: (place: Place) => void;
+  displayRank?: number;
 }
 
-export default function PlaceMarker({ map, place, onClick }: PlaceMarkerProps) {
+export default function PlaceMarker({ map, place, onClick, displayRank }: PlaceMarkerProps) {
   const markerRef = useRef<naver.maps.Marker | null>(null);
 
   useEffect(() => {
@@ -104,7 +105,7 @@ export default function PlaceMarker({ map, place, onClick }: PlaceMarkerProps) {
     const icon =
       place.type === "parking"
         ? buildCircleIcon(color, MARKER_EMOJI.parking)
-        : buildBubbleIcon(place, color);
+        : buildBubbleIcon(place, color, displayRank);
 
     const marker = new naver.maps.Marker({
       position: new naver.maps.LatLng(place.lat, place.lng),
@@ -121,7 +122,7 @@ export default function PlaceMarker({ map, place, onClick }: PlaceMarkerProps) {
     return () => {
       marker.setMap(null);
     };
-  }, [map, place, onClick]);
+  }, [map, place, onClick, displayRank]);
 
   return null;
 }

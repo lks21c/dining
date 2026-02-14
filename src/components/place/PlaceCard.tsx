@@ -24,9 +24,10 @@ interface PlaceCardProps {
   reason?: string;
   onClick?: (place: Place) => void;
   expanded?: boolean;
+  displayRank?: number;
 }
 
-export default function PlaceCard({ place, order, reason, onClick, expanded }: PlaceCardProps) {
+export default function PlaceCard({ place, order, reason, onClick, expanded, displayRank }: PlaceCardProps) {
   const rating =
     place.type !== "parking" && "rating" in place ? place.rating : null;
   const priceRange =
@@ -47,7 +48,7 @@ export default function PlaceCard({ place, order, reason, onClick, expanded }: P
       <div className="flex items-start gap-3">
         {order != null && (
           <div
-            className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center
+            className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center
               text-white font-bold text-sm"
             style={{
               backgroundColor:
@@ -67,9 +68,9 @@ export default function PlaceCard({ place, order, reason, onClick, expanded }: P
         )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            {"diningcodeRank" in place && place.diningcodeRank != null && (
+            {displayRank != null && (
               <span className="flex-shrink-0 text-xs px-1.5 py-0.5 rounded bg-orange-600 text-white font-bold">
-                {place.diningcodeRank}위
+                {displayRank}위
               </span>
             )}
             <h3 className="font-semibold text-gray-900 text-sm truncate">
@@ -88,7 +89,7 @@ export default function PlaceCard({ place, order, reason, onClick, expanded }: P
             )}
             {priceRange && <span>{priceRange}</span>}
           </div>
-          <p className={`text-xs text-gray-600 ${expanded ? "" : "line-clamp-2"}`}>
+          <p className={`text-[13px] leading-relaxed text-gray-600 ${expanded ? "" : "line-clamp-2"}`}>
             {place.description}
           </p>
           {reason && (

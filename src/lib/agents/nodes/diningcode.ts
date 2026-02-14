@@ -22,8 +22,11 @@ function extractListData(html: string): DiningCodePoi[] {
   if (!listDataRaw) return [];
 
   try {
-    // The string is double-escaped JSON — parse the JS string first
-    const unescaped = JSON.parse(`"${listDataRaw}"`);
+    // The string is double-escaped JSON — parse the JS string first.
+    // DiningCode sometimes includes \' (JS-escaped single quotes) which
+    // are not valid JSON escape sequences, so strip them before parsing.
+    const sanitized = listDataRaw.replace(/\\'/g, "'");
+    const unescaped = JSON.parse(`"${sanitized}"`);
     const data = JSON.parse(unescaped);
     const list = data?.poi_section?.list;
     if (!Array.isArray(list)) return [];

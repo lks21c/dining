@@ -31,9 +31,10 @@ interface PlaceDetailProps {
   place: Place;
   onClose: () => void;
   regionName?: string;
+  displayRank?: number;
 }
 
-export default function PlaceDetail({ place, onClose, regionName }: PlaceDetailProps) {
+export default function PlaceDetail({ place, onClose, regionName, displayRank }: PlaceDetailProps) {
   const isRatable = place.type !== "parking";
   const [menus, setMenus] = useState<MenuData[]>([]);
 
@@ -46,14 +47,14 @@ export default function PlaceDetail({ place, onClose, regionName }: PlaceDetailP
   }, [place.name, place.type]);
 
   return (
-    <div className="bg-white rounded-t-2xl shadow-xl flex-1 overflow-y-auto">
+    <div className="bg-white rounded-t-2xl shadow-xl flex-1 overflow-y-auto pb-safe">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-100">
-        <div>
-          <div className="flex items-center gap-2">
-            {"diningcodeRank" in place && place.diningcodeRank != null && (
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            {displayRank != null && (
               <span className="text-xs px-2 py-0.5 rounded bg-orange-600 text-white font-bold">
-                {place.diningcodeRank}위
+                {displayRank}위
               </span>
             )}
             <h2 className="text-lg font-bold text-gray-900">{place.name}</h2>
@@ -70,7 +71,8 @@ export default function PlaceDetail({ place, onClose, regionName }: PlaceDetailP
         </div>
         <button
           onClick={onClose}
-          className="w-8 h-8 flex items-center justify-center rounded-full
+          aria-label="닫기"
+          className="w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-full
             hover:bg-gray-100 text-gray-400 transition-colors"
         >
           ✕
@@ -159,7 +161,7 @@ export default function PlaceDetail({ place, onClose, regionName }: PlaceDetailP
               href={`https://map.naver.com/p/search/${encodeURIComponent(searchQuery)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 py-2 rounded-lg
+              className="flex items-center justify-center gap-1.5 py-2.5 min-h-[44px] rounded-lg
                 bg-green-50 text-green-700 text-xs font-medium hover:bg-green-100 transition-colors"
             >
               <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
@@ -171,7 +173,7 @@ export default function PlaceDetail({ place, onClose, regionName }: PlaceDetailP
               href={`https://search.naver.com/search.naver?ssc=tab.blog&query=${encodeURIComponent(searchQuery)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 py-2 rounded-lg
+              className="flex items-center justify-center gap-1.5 py-2.5 min-h-[44px] rounded-lg
                 bg-green-50 text-green-700 text-xs font-medium hover:bg-green-100 transition-colors"
             >
               <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
@@ -183,7 +185,7 @@ export default function PlaceDetail({ place, onClose, regionName }: PlaceDetailP
               href={`https://www.diningcode.com/list.dc?query=${encodeURIComponent(searchQuery)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 py-2 rounded-lg
+              className="flex items-center justify-center gap-1.5 py-2.5 min-h-[44px] rounded-lg
                 bg-orange-50 text-orange-700 text-xs font-medium hover:bg-orange-100 transition-colors"
             >
               <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
@@ -195,7 +197,7 @@ export default function PlaceDetail({ place, onClose, regionName }: PlaceDetailP
               href={`https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 py-2 rounded-lg
+              className="flex items-center justify-center gap-1.5 py-2.5 min-h-[44px] rounded-lg
                 bg-red-50 text-red-600 text-xs font-medium hover:bg-red-100 transition-colors"
             >
               <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
