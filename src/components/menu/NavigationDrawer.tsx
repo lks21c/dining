@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 export type PageMode = "search" | "places";
 
 interface NavigationDrawerProps {
@@ -9,9 +11,27 @@ interface NavigationDrawerProps {
   onClose: () => void;
 }
 
-const MENU_ITEMS: { mode: PageMode; icon: string; label: string }[] = [
-  { mode: "search", icon: "🔍", label: "AI 추천 검색" },
-  { mode: "places", icon: "📋", label: "전체 장소" },
+const SearchIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8" />
+    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+  </svg>
+);
+
+const ListIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="8" y1="6" x2="21" y2="6" />
+    <line x1="8" y1="12" x2="21" y2="12" />
+    <line x1="8" y1="18" x2="21" y2="18" />
+    <line x1="3" y1="6" x2="3.01" y2="6" />
+    <line x1="3" y1="12" x2="3.01" y2="12" />
+    <line x1="3" y1="18" x2="3.01" y2="18" />
+  </svg>
+);
+
+const MENU_ITEMS: { mode: PageMode; icon: ReactNode; label: string; hash: string }[] = [
+  { mode: "search", icon: <SearchIcon />, label: "AI 추천 검색", hash: "#!/search" },
+  { mode: "places", icon: <ListIcon />, label: "전체 장소", hash: "#!/places" },
 ];
 
 export default function NavigationDrawer({
@@ -64,26 +84,30 @@ export default function NavigationDrawer({
           {MENU_ITEMS.map((item) => {
             const isActive = currentMode === item.mode;
             return (
-              <button
+              <a
                 key={item.mode}
-                onClick={() => {
+                href={item.hash}
+                onClick={(e) => {
+                  // Let Ctrl/Cmd+Click open in new tab naturally
+                  if (e.metaKey || e.ctrlKey) return;
+                  e.preventDefault();
                   onSelectMode(item.mode);
                   onClose();
                 }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left
-                  transition-colors text-sm font-medium
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl
+                  transition-colors text-sm font-medium no-underline
                   ${
                     isActive
                       ? "bg-indigo-50 text-indigo-700"
                       : "text-gray-700 hover:bg-gray-50"
                   }`}
               >
-                <span className="text-lg">{item.icon}</span>
+                <span className="w-5 h-5 flex items-center justify-center">{item.icon}</span>
                 <span>{item.label}</span>
                 {isActive && (
                   <span className="ml-auto w-2 h-2 rounded-full bg-indigo-500" />
                 )}
-              </button>
+              </a>
             );
           })}
         </nav>
