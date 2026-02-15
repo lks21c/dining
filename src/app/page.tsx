@@ -42,7 +42,38 @@ export default function Home() {
   const [activeCourse, setActiveCourse] = useState(0);
   const [regionName, setRegionName] = useState<string | undefined>();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [pageMode, setPageMode] = useState<PageMode>("search");
+
+  // Hash-bang routing: #!/search ↔ #!/places
+  const [pageMode, setPageMode] = useState<PageMode>(() => {
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash;
+      if (hash === "#!/places") return "places";
+    }
+    return "search";
+  });
+
+  // Set initial hash if absent, and sync hash → state on browser back/forward
+  useEffect(() => {
+    if (!window.location.hash) {
+      window.history.replaceState(null, "", "#!/search");
+    }
+    function onHashChange() {
+      const hash = window.location.hash;
+      if (hash === "#!/places") setPageMode("places");
+      else setPageMode("search");
+    }
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+
+  // Wrapper that also pushes the hash
+  const handleSetPageMode = useCallback((mode: PageMode) => {
+    setPageMode(mode);
+    const hash = mode === "places" ? "#!/places" : "#!/search";
+    if (window.location.hash !== hash) {
+      window.history.pushState(null, "", hash);
+    }
+  }, []);
 
   // Compute displayRank for the selected place based on filtered list position
   const selectedDisplayRank = useMemo(() => {
@@ -96,14 +127,14 @@ export default function Home() {
 
   const handleGridPlaceClick = useCallback(
     (place: Place) => {
-      setPageMode("search");
+      handleSetPageMode("search");
       setSelectedPlace(place);
       if (map) {
         map.panTo(new naver.maps.LatLng(place.lat, place.lng));
         map.setZoom(16);
       }
     },
-    [map]
+    [map, handleSetPageMode]
   );
 
   const handleClearSearch = useCallback(() => {
@@ -179,7 +210,7 @@ export default function Home() {
       <NavigationDrawer
         open={drawerOpen}
         currentMode={pageMode}
-        onSelectMode={setPageMode}
+        onSelectMode={handleSetPageMode}
         onClose={() => setDrawerOpen(false)}
       />
 
