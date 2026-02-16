@@ -13,6 +13,7 @@ import RegionSearch from "@/components/search/RegionSearch";
 import HamburgerButton from "@/components/menu/HamburgerButton";
 import NavigationDrawer from "@/components/menu/NavigationDrawer";
 import AllPlacesView from "@/components/menu/AllPlacesPanel";
+import PromptChatView from "@/components/chat/PromptChatView";
 import type { PageMode } from "@/components/menu/NavigationDrawer";
 import BottomSheet from "@/components/ui/BottomSheet";
 import { useNaverMap } from "@/hooks/useNaverMap";
@@ -30,6 +31,7 @@ export default function Home() {
     query,
     setQuery,
     result: searchResult,
+    setResult: setSearchResult,
     searching,
     error,
     search,
@@ -42,11 +44,13 @@ export default function Home() {
   const [activeCourse, setActiveCourse] = useState(0);
   const [regionName, setRegionName] = useState<string | undefined>();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [chatMapLoading, setChatMapLoading] = useState(false);
 
-  // Hash-bang routing: #!/search ↔ #!/places
+  // Hash-bang routing: #!/prompt ↔ #!/search ↔ #!/places
   const [pageMode, setPageMode] = useState<PageMode>(() => {
     if (typeof window !== "undefined") {
       const hash = window.location.hash;
+      if (hash === "#!/prompt") return "prompt";
       if (hash === "#!/places") return "places";
     }
     return "search";
@@ -59,17 +63,82 @@ export default function Home() {
     }
     function onHashChange() {
       const hash = window.location.hash;
-      if (hash === "#!/places") setPageMode("places");
+      if (hash === "#!/prompt") setPageMode("prompt");
+      else if (hash === "#!/places") setPageMode("places");
       else setPageMode("search");
     }
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
+  // Detect chatId in hash URL (from chat resolve) and poll localStorage for result.
+  // The new tab opens immediately while the original tab fetches data in the background,
+  // so we poll until the data appears in localStorage.
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (!hash.includes("chatId=")) return;
+
+    // Try immediate read first (data may already be set)
+    const immediate = localStorage.getItem("chatMapResult");
+    if (immediate) {
+      try {
+        setSearchResult(JSON.parse(immediate));
+        localStorage.removeItem("chatMapResult");
+        window.history.replaceState(null, "", "#!/search");
+        setChatMapLoading(false);
+        return;
+      } catch { /* fall through to polling */ }
+    }
+
+    setChatMapLoading(true);
+
+    const poll = setInterval(() => {
+      // Check for error signal from original tab
+      const err = localStorage.getItem("chatMapError");
+      if (err) {
+        localStorage.removeItem("chatMapError");
+        clearInterval(poll);
+        setChatMapLoading(false);
+        window.history.replaceState(null, "", "#!/search");
+        return;
+      }
+
+      const stored = localStorage.getItem("chatMapResult");
+      if (stored) {
+        try {
+          setSearchResult(JSON.parse(stored));
+          localStorage.removeItem("chatMapResult");
+        } catch (e) {
+          console.error("Failed to parse chat map result:", e);
+        }
+        clearInterval(poll);
+        setChatMapLoading(false);
+        window.history.replaceState(null, "", "#!/search");
+      }
+    }, 500);
+
+    // Timeout after 120s (resolve can take a while due to crawling)
+    const timeout = setTimeout(() => {
+      clearInterval(poll);
+      setChatMapLoading(false);
+      window.history.replaceState(null, "", "#!/search");
+    }, 120000);
+
+    return () => {
+      clearInterval(poll);
+      clearTimeout(timeout);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Wrapper that also pushes the hash
   const handleSetPageMode = useCallback((mode: PageMode) => {
     setPageMode(mode);
-    const hash = mode === "places" ? "#!/places" : "#!/search";
+    const hashMap: Record<PageMode, string> = {
+      prompt: "#!/prompt",
+      search: "#!/search",
+      places: "#!/places",
+    };
+    const hash = hashMap[mode];
     if (window.location.hash !== hash) {
       window.history.pushState(null, "", hash);
     }
@@ -214,7 +283,9 @@ export default function Home() {
         onClose={() => setDrawerOpen(false)}
       />
 
-      {pageMode === "places" ? (
+      {pageMode === "prompt" ? (
+        <PromptChatView />
+      ) : pageMode === "places" ? (
         <AllPlacesView onPlaceClick={handleGridPlaceClick} />
       ) : (
       <>
@@ -349,6 +420,17 @@ export default function Home() {
               <line x1="18" y1="12" x2="22" y2="12" />
             </svg>
           </button>
+        )}
+
+        {/* Chat resolve loading overlay */}
+        {chatMapLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm z-50">
+            <div className="text-center">
+              <div className="w-10 h-10 border-3 border-yellow-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+              <p className="text-sm text-gray-600 font-medium">장소를 찾는 중...</p>
+              <p className="text-xs text-gray-400 mt-1">잠시만 기다려 주세요</p>
+            </div>
+          </div>
         )}
 
         {/* Loading overlay */}

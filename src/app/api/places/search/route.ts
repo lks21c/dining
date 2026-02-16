@@ -1,21 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractLocation, getRecommendations } from "@/lib/llm";
 import { geocode } from "@/lib/geocode";
+import { boundsFromCenter } from "@/lib/bounds";
 import { prisma } from "@/lib/prisma";
 import type { Place } from "@/types/place";
 
 const RADIUS_KM = 1.5;
-
-function boundsFromCenter(lat: number, lng: number, radiusKm: number) {
-  const latDelta = radiusKm / 111.32;
-  const lngDelta = radiusKm / (111.32 * Math.cos((lat * Math.PI) / 180));
-  return {
-    swLat: lat - latDelta,
-    neLat: lat + latDelta,
-    swLng: lng - lngDelta,
-    neLng: lng + lngDelta,
-  };
-}
 
 export async function POST(req: NextRequest) {
   const { query, bounds } = await req.json();

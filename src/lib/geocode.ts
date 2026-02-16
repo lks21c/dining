@@ -41,12 +41,20 @@ export const LANDMARK_MAP: Record<string, GeocodeResult> = {
   한강진역: { lat: 37.5398, lng: 126.9975, address: "서울특별시 용산구 한남동" },
 };
 
+/** Cities outside Seoul — if query starts with these, skip Seoul-only landmark map */
+const NON_SEOUL_PREFIXES = [
+  "대구", "부산", "인천", "대전", "광주", "울산", "수원", "성남",
+  "고양", "용인", "창원", "제주", "천안", "전주", "청주", "포항",
+];
+
 /** Try local landmark map first (only for short landmark queries, not full addresses) */
 function lookupLandmark(query: string): GeocodeResult | null {
   // Exact match
   if (LANDMARK_MAP[query]) return LANDMARK_MAP[query];
   // Skip partial match for full addresses (contain numbers → house/building numbers)
   if (/\d/.test(query)) return null;
+  // Skip partial match if query mentions a non-Seoul city
+  if (NON_SEOUL_PREFIXES.some((p) => query.startsWith(p))) return null;
   // Partial match only for short landmark-like queries
   for (const [key, val] of Object.entries(LANDMARK_MAP)) {
     if (query.includes(key) || key.includes(query)) return val;
@@ -94,7 +102,7 @@ async function naverGeocode(query: string): Promise<GeocodeResult | null> {
 async function nominatimGeocode(query: string): Promise<GeocodeResult | null> {
   try {
     const url = new URL("https://nominatim.openstreetmap.org/search");
-    url.searchParams.set("q", `${query} 서울`);
+    url.searchParams.set("q", query);
     url.searchParams.set("format", "json");
     url.searchParams.set("limit", "1");
     url.searchParams.set("countrycodes", "kr");
@@ -112,6 +120,43 @@ async function nominatimGeocode(query: string): Promise<GeocodeResult | null> {
       lat: parseFloat(data[0].lat),
       lng: parseFloat(data[0].lon),
       address: data[0].display_name || query,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Naver Cloud Platform Place Search API — finds places by name */
+export async function searchPlace(query: string): Promise<GeocodeResult | null> {
+  const clientId = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID;
+  const clientSecret = process.env.NAVER_MAP_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) return null;
+
+  try {
+    const url = new URL(
+      "https://naveropenapi.apigw.ntruss.com/map-place/v1/search"
+    );
+    url.searchParams.set("query", query);
+    url.searchParams.set("coordinate", ""); // optional center bias
+
+    const res = await fetch(url.toString(), {
+      headers: {
+        "X-NCP-APIGW-API-KEY-ID": clientId,
+        "X-NCP-APIGW-API-KEY": clientSecret,
+      },
+    });
+
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const place = data.places?.[0];
+    if (!place) return null;
+
+    return {
+      lat: parseFloat(place.y),
+      lng: parseFloat(place.x),
+      address: place.road_address || place.address || query,
     };
   } catch {
     return null;

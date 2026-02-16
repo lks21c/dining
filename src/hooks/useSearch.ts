@@ -46,5 +46,5 @@ export function useSearch() {
     setError(null);
   }, []);
 
-  return { query, setQuery, result, searching, error, search, clearSearch };
+  return { query, setQuery, result, setResult, searching, error, search, clearSearch };
 }
