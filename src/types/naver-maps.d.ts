@@ -21,6 +21,10 @@ declare namespace naver.maps {
     };
     mapTypeControl?: boolean;
     scaleControl?: boolean;
+    logoControl?: boolean;
+    logoControlOptions?: {
+      position?: number;
+    };
   }
 
   class LatLng {

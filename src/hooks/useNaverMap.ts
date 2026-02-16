@@ -23,6 +23,7 @@ export function useNaverMap(mapElementId: string) {
       },
       mapTypeControl: false,
       scaleControl: false,
+      logoControl: false,
     });
 
     setIsLoaded(true);
