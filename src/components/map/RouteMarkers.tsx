@@ -3,17 +3,30 @@
 import { useEffect, useRef } from "react";
 import type { SearchResult } from "@/types/place";
 
-// Per-order colors: marker number color = route segment color
-const ORDER_COLORS = [
-  "#3B82F6", // 1: blue (parking)
-  "#EF4444", // 2: red (restaurant)
-  "#F59E0B", // 3: amber (cafe)
+// Marker circle colors (per stop order)
+const MARKER_COLORS = [
+  "#3B82F6", // 1: blue
+  "#EF4444", // 2: red
+  "#F59E0B", // 3: amber
   "#10B981", // 4: emerald
   "#8B5CF6", // 5: violet
 ];
 
-function getOrderColor(order: number): string {
-  return ORDER_COLORS[(order - 1) % ORDER_COLORS.length];
+// Route segment colors — high contrast between consecutive segments
+const ROUTE_COLORS = [
+  "#EF4444", // segment 1→2: red
+  "#2563EB", // segment 2→3: vivid blue
+  "#16A34A", // segment 3→4: green
+  "#9333EA", // segment 4→5: purple
+  "#EA580C", // segment 5→6: orange
+];
+
+function getMarkerColor(order: number): string {
+  return MARKER_COLORS[(order - 1) % MARKER_COLORS.length];
+}
+
+function getRouteColor(segmentIndex: number): string {
+  return ROUTE_COLORS[segmentIndex % ROUTE_COLORS.length];
 }
 
 interface WalkingSegment {
@@ -92,7 +105,7 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
 
     // Create numbered circle markers with order-based colors
     stops.forEach(({ place, rec }) => {
-      const color = getOrderColor(rec.order);
+      const color = getMarkerColor(rec.order);
       const pos = new naver.maps.LatLng(place.lat, place.lng);
 
       const marker = new naver.maps.Marker({
@@ -136,10 +149,9 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
         // Draw each segment as a separate colored polyline
         segments.forEach((seg, i) => {
           const isReturnLeg = firstIsParking && i === totalWaypoints - 2;
-          // Segment from stop i → stop i+1 uses color of destination (stop i+1)
           const segColor = isReturnLeg
-            ? getOrderColor(1) // return to parking uses parking color
-            : getOrderColor(i + 2);
+            ? getMarkerColor(1) // return to parking uses parking color
+            : getRouteColor(i);
 
           const path = seg.path.map(
             (p) => new naver.maps.LatLng(p.lat, p.lng)
@@ -201,8 +213,8 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
           const to = positions[i + 1];
           const isReturnLeg = firstIsParking && i === positions.length - 2;
           const segColor = isReturnLeg
-            ? getOrderColor(1)
-            : getOrderColor(i + 2);
+            ? getMarkerColor(1)
+            : getRouteColor(i);
 
           const polyline = new naver.maps.Polyline({
             map,
