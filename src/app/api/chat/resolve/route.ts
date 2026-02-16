@@ -8,18 +8,20 @@ import { crawlDiningCode } from "@/lib/agents/nodes/diningcode";
 import { deduplicatePlaces } from "@/lib/agents/utils/dedup";
 import { saveCrawledPlaces } from "@/lib/agents/utils/place-cache";
 import { classifyPlaces } from "@/lib/classify";
-import { normalizeName } from "@/lib/agents/utils/dedup";
-import type { Place, Course, CourseStop } from "@/types/place";
+import { normalizeName } from "@/lib/normalize";
+import type { Place, Course } from "@/types/place";
 
 const RADIUS_KM = 1.5;
 
 interface ExtractedPlaces {
   region: string;
   places: string[];
+  courses?: string[][];
 }
 
 /**
  * Step 1: Use Gemini Flash to extract place names and region from AI response.
+ * Returns courses (multiple route options) when the AI suggests alternatives.
  */
 async function extractPlacesFromResponse(
   aiResponse: string
@@ -32,13 +34,27 @@ async function extractPlacesFromResponse(
     messages: [
       {
         role: "system",
-        content: `AI 응답에서 추천된 장소명과 지역을 JSON으로 추출하세요.
+        content: `AI 응답에서 추천된 장소명과 지역, 그리고 추천 코스를 JSON으로 추출하세요.
 
 규칙:
 - 음식점, 카페, 디저트 가게, 술집 등의 가게 이름만 추출
 - 체인점 이름(스타벅스, 역전할머니맥주 등)도 포함
 - 지역명은 응답에서 언급된 가장 구체적인 지역 (예: "대구 종로", "서울 이태원")
-- 반드시 JSON만 응답: {"region": "지역명", "places": ["장소1", "장소2"]}`,
+- 같은 가게의 다른 지점(예: "사운즈커피 프리미어", "사운즈커피 삼덕점")은 먼저 언급된 것 하나만 포함
+- "추천 코스"나 "동선" 등 방문 순서가 제시되어 있으면 반드시 그 순서대로 courses 배열을 구성
+- "A이나 B", "A 또는 B", "A 혹은 B"처럼 대안이 있으면 각각 별도 코스로 분리
+  예: "로산가옥 → 사운즈커피 → 윤달이나 온달포장" → courses: [["로산가옥","사운즈커피","윤달"], ["로산가옥","사운즈커피","온달포장"]]
+- 장소들이 번호 매기기(1. 2. 3.)나 별도 항목으로 독립적으로 추천된 경우(각각이 하나의 선택지), 각 장소를 별도 코스로 분리
+  예: "1. 블랙로드 2. 사운더 3. FF커피" → courses: [["블랙로드"], ["사운더"], ["FF커피"]]
+  예: "카페 추천: 블랙로드, 사운더, FF커피" (각각 독립 추천) → courses: [["블랙로드"], ["사운더"], ["FF커피"]]
+- 단, "A → B → C" 처럼 방문 순서가 있는 코스는 하나의 코스로 유지
+  예: "갓잇 → 해룡 → 블랙로드" → courses: [["갓잇","해룡","블랙로드"]]
+- places에는 모든 코스에 등장하는 고유 장소명을 중복 없이 나열
+
+반드시 JSON만 응답:
+{"region": "지역명", "places": ["장소1", "장소2", ...], "courses": [["장소1","장소2"], ["장소1","장소3"]]}
+
+courses는 항상 포함하세요. 순서가 있는 동선이면 하나의 코스로, 독립 추천이면 각각 별도 코스로.`,
       },
       { role: "user", content: aiResponse },
     ],
@@ -47,7 +63,7 @@ async function extractPlacesFromResponse(
   const content = completion.choices[0]?.message?.content;
   if (!content) throw new Error("No response from LLM");
 
-  console.log("[resolve] LLM extraction raw:", content.slice(0, 300));
+  console.log("[resolve] LLM extraction raw:", content.slice(0, 500));
 
   const parsed = JSON.parse(extractJson(content));
   console.log("[resolve] Extracted:", JSON.stringify(parsed));
@@ -147,71 +163,74 @@ async function resolvePlace(
 }
 
 /**
- * Build courses directly from extracted place names without calling LLM again.
- * Groups places into restaurant+cafe pairs.
+ * Resolve a course name list to Place objects, preserving order.
  */
-function buildCoursesFromPlaces(places: Place[]): Course[] {
-  let restaurants: Place[] = places.filter(
-    (p) => p.type === "restaurant" || p.type === "bar"
-  );
-  let cafes: Place[] = places.filter(
-    (p) => p.type === "cafe" || p.type === "bakery"
-  );
-
-  // If no type distinction, treat first half as restaurants, second as cafes
-  if (restaurants.length === 0 && cafes.length === 0) {
-    const mid = Math.ceil(places.length / 2);
-    restaurants = places.slice(0, mid);
-    cafes = places.slice(mid);
-  }
-
-  const courses: Course[] = [];
-
-  if (restaurants.length === 0 && cafes.length > 0) {
-    // Cafes only
-    courses.push({
-      courseNumber: 1,
-      title: cafes.map((c) => c.name).join(" + "),
-      stops: cafes.map((c, i) => ({
-        order: i + 1,
-        id: c.id,
-        type: c.type,
-        reason: "채팅 AI 추천",
-      })),
-      routeSummary: cafes.map((c) => c.name).join(" → "),
-    });
-  } else {
-    // Pair each restaurant with a cafe
-    for (let i = 0; i < restaurants.length; i++) {
-      const r = restaurants[i];
-      const c = cafes[i % Math.max(cafes.length, 1)];
-      const stops: CourseStop[] = [
-        { order: 1, id: r.id, type: r.type, reason: "채팅 AI 추천" },
-      ];
-      if (c) {
-        stops.push({ order: 2, id: c.id, type: c.type, reason: "채팅 AI 추천" });
-      }
-      courses.push({
-        courseNumber: i + 1,
-        title: c ? `${r.name} + ${c.name}` : r.name,
-        stops,
-        routeSummary: c ? `${r.name} → ${c.name}` : r.name,
+function resolveNamesToPLaces(
+  names: string[],
+  placePool: Place[]
+): Place[] {
+  return names
+    .map((name) => {
+      const en = normalizeName(name);
+      return placePool.find((dp) => {
+        const dn = normalizeName(dp.name);
+        return dn.includes(en) || en.includes(dn);
       });
-    }
+    })
+    .filter((p): p is Place => !!p);
+}
+
+/**
+ * Build courses from extracted course structure or fall back to single course.
+ */
+function buildCourses(
+  matchedPlaces: Place[],
+  extractedCourses?: string[][],
+): Course[] {
+  if (matchedPlaces.length === 0) return [];
+
+  // If LLM extracted multiple courses, build each one
+  if (extractedCourses && extractedCourses.length > 0) {
+    return extractedCourses.map((courseNames, ci) => {
+      const coursePlaces = resolveNamesToPLaces(courseNames, matchedPlaces);
+      return {
+        courseNumber: ci + 1,
+        title: coursePlaces.map((p) => p.name).join(" + "),
+        stops: coursePlaces.map((p, i) => ({
+          order: i + 1,
+          id: p.id,
+          type: p.type,
+          reason: "채팅 AI 추천",
+        })),
+        routeSummary: coursePlaces.map((p) => p.name).join(" → "),
+      };
+    }).filter((c) => c.stops.length > 0);
   }
 
-  return courses;
+  // Fallback: single course preserving input order
+  return [{
+    courseNumber: 1,
+    title: matchedPlaces.map((p) => p.name).join(" + "),
+    stops: matchedPlaces.map((p, i) => ({
+      order: i + 1,
+      id: p.id,
+      type: p.type,
+      reason: "채팅 AI 추천",
+    })),
+    routeSummary: matchedPlaces.map((p) => p.name).join(" → "),
+  }];
 }
 
 /**
  * POST /api/chat/resolve
  *
  * Input: { userQuery: string, aiResponse: string }
+ *    OR: { region: string, places: string[] }   ← direct (skip LLM extraction)
  * Output: SearchResult (same shape as /api/places/search)
  */
 export async function POST(req: NextRequest) {
   try {
-    let body: { userQuery?: string; aiResponse?: string };
+    let body: { userQuery?: string; aiResponse?: string; region?: string; places?: string[] };
     try {
       body = await req.json();
     } catch {
@@ -223,16 +242,26 @@ export async function POST(req: NextRequest) {
 
     const { userQuery, aiResponse } = body;
 
-    if (!aiResponse) {
+    let region: string;
+    let placeNames: string[];
+    let extractedCourses: string[][] | undefined;
+
+    if (body.region && body.places?.length) {
+      // Direct region + places provided (e.g. from shared URL) — skip LLM extraction
+      region = body.region;
+      placeNames = body.places;
+    } else if (aiResponse) {
+      // Extract places and region from AI response via LLM
+      const extracted = await extractPlacesFromResponse(aiResponse);
+      region = extracted.region;
+      placeNames = extracted.places;
+      extractedCourses = extracted.courses;
+    } else {
       return NextResponse.json(
-        { error: "aiResponse is required" },
+        { error: "aiResponse or region+places is required" },
         { status: 400 }
       );
     }
-
-    // Step 1: Extract places and region from AI response
-    const extracted = await extractPlacesFromResponse(aiResponse);
-    const { region, places: placeNames } = extracted;
 
     if (!region) {
       return NextResponse.json(
@@ -354,8 +383,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Step 6: Build result — use matched places only (chat AI's picks)
-    const matchedPlaces = findMatched(allPlaces);
+    // Step 6: Build result — use matched places only (chat AI's picks), preserving AI recommendation order
+    const matchedUnordered = findMatched(allPlaces);
+    const matchedPlaces = placeNames
+      .map((name) => {
+        const en = normalizeName(name);
+        return matchedUnordered.find((dp) => {
+          const dn = normalizeName(dp.name);
+          return dn.includes(en) || en.includes(dn);
+        });
+      })
+      .filter((p): p is Place => !!p);
     console.log(
       `[resolve] Final matched: ${matchedPlaces.length}/${allPlaces.length} — ${matchedPlaces.map((p) => p.name).join(", ")}`
     );
@@ -394,7 +432,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Happy path: we have matched places — build courses directly without calling LLM again
-    const courses = buildCoursesFromPlaces(matchedPlaces);
+    const courses = buildCourses(matchedPlaces, extractedCourses);
 
     // Build a summary from the original AI response (truncated for the map view)
     const summaryLines: string[] = [];

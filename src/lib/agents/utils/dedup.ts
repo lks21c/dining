@@ -1,19 +1,9 @@
 import { calcDistanceM } from "@/lib/llm";
 import type { RawCrawledPlace } from "../state";
 
-/**
- * Normalize place name for dedup matching:
- * - lowercase
- * - remove common suffixes (본점, 지점, 점)
- * - collapse whitespace
- */
-export function normalizeName(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/\s*(본점|지점|점|역점|직영점)\s*$/g, "")
-    .replace(/\s+/g, " ");
-}
+import { normalizeName } from "@/lib/normalize";
+// Re-export for backward compatibility
+export { normalizeName };
 
 /**
  * Check if two places are the same:

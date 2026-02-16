@@ -47,6 +47,29 @@ export default function PromptChatView() {
     sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
   }, [messages]);
 
+  // Auto-send from URL: #!/prompt?q=대구+삼덕동+맛집
+  const urlQuerySent = useRef(false);
+  useEffect(() => {
+    if (urlQuerySent.current) return;
+    const hash = window.location.hash;
+    const qIdx = hash.indexOf("?");
+    if (qIdx < 0) return;
+    const params = new URLSearchParams(hash.slice(qIdx + 1));
+    const q = params.get("q");
+    if (!q) return;
+    urlQuerySent.current = true;
+    // Clear previous conversation and start fresh with the URL query
+    setMessages([]);
+    nextId = 0;
+    sessionStorage.removeItem(CHAT_STORAGE_KEY);
+    // Remove q from URL to prevent re-send on navigation back
+    params.delete("q");
+    const remaining = params.toString();
+    window.history.replaceState(null, "", remaining ? `#!/prompt?${remaining}` : "#!/prompt");
+    // Defer send to next tick so state is clean
+    setTimeout(() => handleSend(q), 0);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -101,6 +124,12 @@ export default function PromptChatView() {
     }
   }, []);
 
+  const handleClear = useCallback(() => {
+    setMessages([]);
+    nextId = 0;
+    sessionStorage.removeItem(CHAT_STORAGE_KEY);
+  }, []);
+
   const handleSelectQuery = useCallback((query: string) => {
     handleSend(query);
   }, [handleSend]);
@@ -109,13 +138,8 @@ export default function PromptChatView() {
     const msg = messagesRef.current.find((m) => m.id === msgId);
     if (!msg || msg.role !== "assistant" || !msg.text) return;
 
-    // Clear any stale data
-    localStorage.removeItem("chatMapResult");
-    localStorage.removeItem("chatMapError");
-
-    // Open target URL directly & synchronously (before any await) to avoid popup blocker
-    const targetUrl = `${window.location.origin}${window.location.pathname}#!/search?chatId=chat`;
-    window.open(targetUrl, "_blank");
+    // Open blank tab synchronously (before any await) to avoid popup blocker
+    const newTab = window.open("about:blank", "_blank");
 
     setResolvingId(msgId);
     setResolveError(null);
@@ -134,15 +158,41 @@ export default function PromptChatView() {
         const data = await res.json().catch(() => null);
         const errMsg = data?.error || "장소 해석에 실패했습니다";
         setResolveError(errMsg);
-        localStorage.setItem("chatMapError", errMsg);
+        if (newTab) newTab.close();
         return;
       }
 
       const result = await res.json();
-      localStorage.setItem("chatMapResult", JSON.stringify(result));
+
+      // Build shareable hash URL from result
+      // If multiple courses exist, use pipe-delimited format: "A,B,C|A,B,D"
+      const region = result.center?.name || "";
+      let placesParam: string;
+      if (result.courses && result.courses.length > 1) {
+        const placeMap = new Map(
+          (result.places as { id: string; name: string }[]).map((p) => [p.id, p.name])
+        );
+        placesParam = result.courses
+          .map((c: { stops: { id: string }[] }) =>
+            c.stops.map((s) => placeMap.get(s.id) || "").filter(Boolean).join(",")
+          )
+          .filter((g: string) => g)
+          .join("|");
+      } else {
+        placesParam = result.places?.map((p: { name: string }) => p.name).join(",") || "";
+      }
+      const params = new URLSearchParams({ region, places: placesParam });
+      const url = `${window.location.origin}${window.location.pathname}#!/search?${params.toString()}`;
+
+      // Cache result so the new tab can use it instantly without re-fetching
+      localStorage.setItem("chatResolveCache", JSON.stringify(result));
+
+      if (newTab) {
+        newTab.location.href = url;
+      }
     } catch {
       setResolveError("네트워크 오류가 발생했습니다");
-      localStorage.setItem("chatMapError", "네트워크 오류가 발생했습니다");
+      if (newTab) newTab.close();
     } finally {
       setResolvingId(null);
     }
@@ -162,6 +212,20 @@ export default function PromptChatView() {
           </div>
           <h1 className="text-base font-semibold text-[#3C1E1E]">맛집 추천 채팅</h1>
         </div>
+        {messages.length > 0 && (
+          <button
+            onClick={handleClear}
+            disabled={sending}
+            className="ml-auto mr-1 p-2 text-[#5A7A8A] hover:text-[#3C1E1E] hover:bg-[#A3B8CA]/40 rounded-lg transition-colors disabled:opacity-40"
+            title="대화 초기화"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18"/>
+              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Resolve error toast */}

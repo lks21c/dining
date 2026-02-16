@@ -21,6 +21,7 @@ import { useMapBounds, MIN_MARKER_ZOOM } from "@/hooks/useMapBounds";
 import { usePlaces } from "@/hooks/usePlaces";
 import { useSearch } from "@/hooks/useSearch";
 import { useCrawl } from "@/hooks/useCrawl";
+import { normalizeName } from "@/lib/normalize";
 import type { Place, SearchResult } from "@/types/place";
 
 export default function Home() {
@@ -71,63 +72,97 @@ export default function Home() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
-  // Detect chatId in hash URL (from chat resolve) and poll localStorage for result.
-  // The new tab opens immediately while the original tab fetches data in the background,
-  // so we poll until the data appears in localStorage.
+  // Load places from hash URL params (#!/search?region=...&places=...&course=N)
+  // places param supports pipe-delimited course groups: "A,B,C|D,E" = 2 courses
+  // First checks localStorage cache (instant when opened from chat tab),
+  // then falls back to resolve API (when URL is shared/bookmarked).
   useEffect(() => {
     const hash = window.location.hash;
-    if (!hash.includes("chatId=")) return;
+    const qIdx = hash.indexOf("?");
+    if (qIdx < 0) return;
+    const params = new URLSearchParams(hash.slice(qIdx + 1));
+    const region = params.get("region");
+    const placesStr = params.get("places");
+    if (!region || !placesStr) return;
 
-    // Try immediate read first (data may already be set)
-    const immediate = localStorage.getItem("chatMapResult");
-    if (immediate) {
-      try {
-        setSearchResult(JSON.parse(immediate));
-        localStorage.removeItem("chatMapResult");
-        window.history.replaceState(null, "", "#!/search");
-        setChatMapLoading(false);
-        return;
-      } catch { /* fall through to polling */ }
+    const courseParam = params.get("course");
+    if (courseParam) setActiveCourse(parseInt(courseParam, 10) || 0);
+
+    // Parse pipe-delimited course groups
+    const courseGroups = placesStr.split("|").map((g) =>
+      g.split(",").map((s) => s.trim()).filter(Boolean)
+    );
+    const allNames = [...new Set(courseGroups.flat())];
+
+    // Helper: rebuild courses from URL pipe structure using resolved places
+    function rebuildCourses(resultPlaces: Place[]) {
+      if (courseGroups.length <= 1) return null; // single course → use API result as-is
+      const courses = courseGroups.map((group, ci) => {
+        const stops = group
+          .map((name, si) => {
+            const en = normalizeName(name);
+            const place = resultPlaces.find((p) => {
+              const dn = normalizeName(p.name);
+              return dn.includes(en) || en.includes(dn);
+            });
+            return place
+              ? { order: si + 1, id: place.id, type: place.type, reason: "채팅 AI 추천" }
+              : null;
+          })
+          .filter((s): s is NonNullable<typeof s> => !!s);
+        return {
+          courseNumber: ci + 1,
+          title: group.join(" + "),
+          stops,
+          routeSummary: group.join(" → "),
+        };
+      });
+      return courses;
     }
 
-    setChatMapLoading(true);
-
-    const poll = setInterval(() => {
-      // Check for error signal from original tab
-      const err = localStorage.getItem("chatMapError");
-      if (err) {
-        localStorage.removeItem("chatMapError");
-        clearInterval(poll);
-        setChatMapLoading(false);
-        window.history.replaceState(null, "", "#!/search");
-        return;
-      }
-
-      const stored = localStorage.getItem("chatMapResult");
-      if (stored) {
-        try {
-          setSearchResult(JSON.parse(stored));
-          localStorage.removeItem("chatMapResult");
-        } catch (e) {
-          console.error("Failed to parse chat map result:", e);
+    // 1. Check localStorage cache (set by the chat tab that just opened us)
+    const cached = localStorage.getItem("chatResolveCache");
+    if (cached) {
+      try {
+        const result = JSON.parse(cached);
+        // Verify the cache matches the URL region
+        if (result.center?.name === region) {
+          const rebuilt = rebuildCourses(result.places || []);
+          if (rebuilt) {
+            result.courses = rebuilt;
+            result.recommendations = rebuilt[0]?.stops || [];
+            result.routeSummary = rebuilt[0]?.routeSummary || "";
+          }
+          setSearchResult(result);
+          localStorage.removeItem("chatResolveCache");
+          return;
         }
-        clearInterval(poll);
-        setChatMapLoading(false);
-        window.history.replaceState(null, "", "#!/search");
-      }
-    }, 500);
+      } catch { /* fall through to API */ }
+    }
 
-    // Timeout after 120s (resolve can take a while due to crawling)
-    const timeout = setTimeout(() => {
-      clearInterval(poll);
-      setChatMapLoading(false);
-      window.history.replaceState(null, "", "#!/search");
-    }, 120000);
-
-    return () => {
-      clearInterval(poll);
-      clearTimeout(timeout);
-    };
+    // 2. No cache (URL shared/bookmarked) → call resolve API with region + places
+    setChatMapLoading(true);
+    fetch("/api/chat/resolve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ region, places: allNames }),
+    })
+      .then((r) => r.json())
+      .then((result) => {
+        if (result.error) {
+          console.error("[resolve from URL]", result.error);
+          return;
+        }
+        const rebuilt = rebuildCourses(result.places || []);
+        if (rebuilt) {
+          result.courses = rebuilt;
+          result.recommendations = rebuilt[0]?.stops || [];
+          result.routeSummary = rebuilt[0]?.routeSummary || "";
+        }
+        setSearchResult(result);
+      })
+      .catch(console.error)
+      .finally(() => setChatMapLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Wrapper that also pushes the hash
@@ -160,6 +195,18 @@ export default function Home() {
       setRegionName(searchResult.center.name);
     }
   }, [searchResult]);
+
+  // Sync activeCourse to URL hash when region params are present
+  useEffect(() => {
+    const hash = window.location.hash;
+    const qIdx = hash.indexOf("?");
+    if (qIdx < 0) return;
+    const params = new URLSearchParams(hash.slice(qIdx + 1));
+    if (params.has("region")) {
+      params.set("course", String(activeCourse));
+      window.history.replaceState(null, "", `#!/search?${params.toString()}`);
+    }
+  }, [activeCourse]);
 
   // Derive display result for RouteMarkers based on selected course
   const displayResult: SearchResult | null = useMemo(() => {

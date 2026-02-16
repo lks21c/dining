@@ -136,10 +136,10 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
         // Draw each segment as a separate colored polyline
         segments.forEach((seg, i) => {
           const isReturnLeg = firstIsParking && i === totalWaypoints - 2;
-          // Segment from stop i → stop i+1 uses color of stop i+1 (1-indexed order)
+          // Segment from stop i → stop i+1 uses color of destination (stop i+1)
           const segColor = isReturnLeg
             ? getOrderColor(1) // return to parking uses parking color
-            : getOrderColor(i + 1);
+            : getOrderColor(i + 2);
 
           const path = seg.path.map(
             (p) => new naver.maps.LatLng(p.lat, p.lng)
@@ -202,7 +202,7 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
           const isReturnLeg = firstIsParking && i === positions.length - 2;
           const segColor = isReturnLeg
             ? getOrderColor(1)
-            : getOrderColor(i + 1);
+            : getOrderColor(i + 2);
 
           const polyline = new naver.maps.Polyline({
             map,
