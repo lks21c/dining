@@ -55,7 +55,10 @@ function lookupLandmark(query: string): GeocodeResult | null {
   if (/\d/.test(query)) return null;
   // Skip partial match if query mentions a non-Seoul city
   if (NON_SEOUL_PREFIXES.some((p) => query.startsWith(p))) return null;
-  // Partial match only for short landmark-like queries
+  // Skip partial match for long queries (likely "region + place name", not a landmark)
+  const words = query.trim().split(/\s+/);
+  if (words.length > 2) return null;
+  // Partial match only for short landmark-like queries (1–2 words)
   for (const [key, val] of Object.entries(LANDMARK_MAP)) {
     if (query.includes(key) || key.includes(query)) return val;
   }

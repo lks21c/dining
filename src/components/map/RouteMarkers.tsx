@@ -21,6 +21,9 @@ const ROUTE_COLORS = [
   "#EA580C", // segment 5→6: orange
 ];
 
+// Return leg (last→parking) color — distinct from forward route segments
+const RETURN_COLOR = "#9CA3AF"; // gray-400
+
 function getMarkerColor(order: number): string {
   return MARKER_COLORS[(order - 1) % MARKER_COLORS.length];
 }
@@ -225,7 +228,7 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
           const seg = segments[i];
           const isReturnLeg = firstIsParking && i === totalWaypoints - 2;
           const segColor = isReturnLeg
-            ? getMarkerColor(1)
+            ? RETURN_COLOR
             : getRouteColor(i);
 
           const path = seg.path.map(
