@@ -75,6 +75,20 @@ interface RouteMarkersProps {
   searchResult: SearchResult;
 }
 
+/** Remove all overlays from the map and clear the refs */
+function clearOverlays(
+  markers: React.MutableRefObject<naver.maps.Marker[]>,
+  labels: React.MutableRefObject<naver.maps.Marker[]>,
+  polylines: React.MutableRefObject<naver.maps.Polyline[]>,
+) {
+  markers.current.forEach((m) => m.setMap(null));
+  markers.current = [];
+  labels.current.forEach((m) => m.setMap(null));
+  labels.current = [];
+  polylines.current.forEach((p) => p.setMap(null));
+  polylines.current = [];
+}
+
 export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
   const markersRef = useRef<naver.maps.Marker[]>([]);
   const distLabelsRef = useRef<naver.maps.Marker[]>([]);
@@ -83,13 +97,11 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
   useEffect(() => {
     if (!map || !searchResult.places.length) return;
 
-    // Clean previous
-    markersRef.current.forEach((m) => m.setMap(null));
-    markersRef.current = [];
-    distLabelsRef.current.forEach((m) => m.setMap(null));
-    distLabelsRef.current = [];
-    polylinesRef.current.forEach((p) => p.setMap(null));
-    polylinesRef.current = [];
+    // Prevent stale async callbacks from drawing after cleanup (React Strict Mode)
+    let cancelled = false;
+
+    // Clean previous overlays
+    clearOverlays(markersRef, distLabelsRef, polylinesRef);
 
     const placeMap = new Map(searchResult.places.map((p) => [p.id, p]));
 
@@ -133,7 +145,7 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
       markersRef.current.push(marker);
     });
 
-    // Build route positions — if first stop is parking, append it at the end for return trip
+    // Build route positions
     const positions = stops.map((s) => ({
       lat: s.place.lat,
       lng: s.place.lng,
@@ -144,67 +156,90 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
     }
     const totalWaypoints = positions.length;
 
+    // Helper: draw a single segment polyline + distance label
+    function drawSegment(
+      i: number,
+      path: naver.maps.LatLng[],
+      segColor: string,
+      strokeWeight: number,
+      strokeOpacity: number,
+      strokeStyle: string,
+      distText: string,
+      minutes: number,
+      isReturnLeg: boolean,
+    ) {
+      const polyline = new naver.maps.Polyline({
+        map,
+        path,
+        strokeColor: segColor,
+        strokeWeight,
+        strokeOpacity,
+        strokeStyle,
+      });
+      polylinesRef.current.push(polyline);
+
+      const fromPos = positions[i];
+      const toPos = positions[i + 1];
+      if (!toPos) return;
+
+      const midLat = (fromPos.lat + toPos.lat) / 2;
+      const midLng = (fromPos.lng + toPos.lng) / 2;
+
+      const emoji = isReturnLeg ? "🅿️" : "🚶";
+      const suffix = isReturnLeg ? " 복귀" : "";
+      const label = `${emoji} ${distText} · ${minutes}분${suffix}`;
+
+      const labelMarker = new naver.maps.Marker({
+        position: new naver.maps.LatLng(midLat, midLng),
+        map,
+        zIndex: 90,
+        icon: {
+          content: `<div style="
+            background:white;
+            padding:3px 8px;
+            border-radius:12px;
+            font-size:11px;
+            color:${segColor};
+            border:1.5px solid ${segColor}40;
+            white-space:nowrap;
+            font-weight:600;
+            box-shadow:0 2px 6px rgba(0,0,0,0.15);
+            pointer-events:none;
+          ">${label}</div>`,
+          anchor: new naver.maps.Point(40, 10),
+        },
+      });
+
+      distLabelsRef.current.push(labelMarker);
+    }
+
     getWalkingSegments(positions).then((segments) => {
+      // Guard: if effect was cleaned up, don't draw anything
+      if (cancelled) return;
+
       if (segments) {
-        // Draw each segment as a separate colored polyline
+        // Walking route from OSRM — solid colored lines per segment
         segments.forEach((seg, i) => {
           const isReturnLeg = firstIsParking && i === totalWaypoints - 2;
           const segColor = isReturnLeg
-            ? getMarkerColor(1) // return to parking uses parking color
+            ? getMarkerColor(1)
             : getRouteColor(i);
 
           const path = seg.path.map(
             (p) => new naver.maps.LatLng(p.lat, p.lng)
           );
-          const polyline = new naver.maps.Polyline({
-            map,
-            path,
-            strokeColor: segColor,
-            strokeWeight: 5,
-            strokeOpacity: 0.85,
-            strokeStyle: isReturnLeg ? "shortdash" : "solid",
-          });
-          polylinesRef.current.push(polyline);
-
-          // Distance label
-          const fromPos = positions[i];
-          const toPos = positions[i + 1];
-          if (!toPos) return;
-
-          const midLat = (fromPos.lat + toPos.lat) / 2;
-          const midLng = (fromPos.lng + toPos.lng) / 2;
           const minutes = Math.max(1, Math.ceil(seg.duration / 60));
           const distText =
             seg.distance >= 1000
               ? `${(seg.distance / 1000).toFixed(1)}km`
               : `${seg.distance}m`;
 
-          const label = isReturnLeg
-            ? `🅿️ ${distText} · ${minutes}분 복귀`
-            : `🚶 ${distText} · ${minutes}분`;
-
-          const labelMarker = new naver.maps.Marker({
-            position: new naver.maps.LatLng(midLat, midLng),
-            map,
-            zIndex: 90,
-            icon: {
-              content: `<div style="
-                background:white;
-                padding:3px 8px;
-                border-radius:12px;
-                font-size:11px;
-                color:${segColor};
-                border:1.5px solid ${segColor}40;
-                white-space:nowrap;
-                font-weight:600;
-                box-shadow:0 2px 6px rgba(0,0,0,0.15);
-                pointer-events:none;
-              ">${label}</div>`,
-              anchor: new naver.maps.Point(40, 10),
-            },
-          });
-
-          distLabelsRef.current.push(labelMarker);
+          drawSegment(
+            i, path, segColor,
+            5, 0.85,
+            isReturnLeg ? "shortdash" : "solid",
+            distText, minutes, isReturnLeg,
+          );
         });
       } else {
         // Fallback: straight dashed lines per segment
@@ -216,56 +251,24 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
             ? getMarkerColor(1)
             : getRouteColor(i);
 
-          const polyline = new naver.maps.Polyline({
-            map,
-            path: [
-              new naver.maps.LatLng(from.lat, from.lng),
-              new naver.maps.LatLng(to.lat, to.lng),
-            ],
-            strokeColor: segColor,
-            strokeWeight: 3,
-            strokeOpacity: 0.7,
-            strokeStyle: "shortdash",
-          });
-          polylinesRef.current.push(polyline);
+          const path = [
+            new naver.maps.LatLng(from.lat, from.lng),
+            new naver.maps.LatLng(to.lat, to.lng),
+          ];
 
           const straight = calcDistanceM(from.lat, from.lng, to.lat, to.lng);
           const walking = Math.round(straight * 1.3);
           const minutes = Math.max(1, Math.ceil(walking / 80));
           const distText =
             walking >= 1000
-              ? `${(walking / 1000).toFixed(1)}km`
-              : `${walking}m`;
+              ? `~${(walking / 1000).toFixed(1)}km`
+              : `~${walking}m`;
 
-          const midLat = (from.lat + to.lat) / 2;
-          const midLng = (from.lng + to.lng) / 2;
-
-          const label = isReturnLeg
-            ? `🅿️ ~${distText} · ~${minutes}분 복귀`
-            : `~${distText} · ~${minutes}분`;
-
-          const labelMarker = new naver.maps.Marker({
-            position: new naver.maps.LatLng(midLat, midLng),
-            map,
-            zIndex: 90,
-            icon: {
-              content: `<div style="
-                background:white;
-                padding:3px 8px;
-                border-radius:12px;
-                font-size:11px;
-                color:${segColor};
-                border:1.5px solid ${segColor}40;
-                white-space:nowrap;
-                font-weight:600;
-                box-shadow:0 2px 6px rgba(0,0,0,0.1);
-                pointer-events:none;
-              ">${label}</div>`,
-              anchor: new naver.maps.Point(40, 10),
-            },
-          });
-
-          distLabelsRef.current.push(labelMarker);
+          drawSegment(
+            i, path, segColor,
+            3, 0.7, "shortdash",
+            `~${distText}`, minutes, isReturnLeg,
+          );
         }
       }
     });
@@ -283,12 +286,8 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
     }
 
     return () => {
-      markersRef.current.forEach((m) => m.setMap(null));
-      markersRef.current = [];
-      distLabelsRef.current.forEach((m) => m.setMap(null));
-      distLabelsRef.current = [];
-      polylinesRef.current.forEach((p) => p.setMap(null));
-      polylinesRef.current = [];
+      cancelled = true;
+      clearOverlays(markersRef, distLabelsRef, polylinesRef);
     };
   }, [map, searchResult]);
 
