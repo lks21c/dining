@@ -219,7 +219,10 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
 
       if (segments) {
         // Walking route from OSRM — solid colored lines per segment
-        segments.forEach((seg, i) => {
+        // Draw in reverse order so earlier segments render on top of later
+        // ones, making color transitions visible at shared-road junctions.
+        for (let i = segments.length - 1; i >= 0; i--) {
+          const seg = segments[i];
           const isReturnLeg = firstIsParking && i === totalWaypoints - 2;
           const segColor = isReturnLeg
             ? getMarkerColor(1)
@@ -240,7 +243,7 @@ export default function RouteMarkers({ map, searchResult }: RouteMarkersProps) {
             isReturnLeg ? "shortdash" : "solid",
             distText, minutes, isReturnLeg,
           );
-        });
+        }
       } else {
         // Fallback: straight dashed lines per segment
         for (let i = 0; i < positions.length - 1; i++) {
