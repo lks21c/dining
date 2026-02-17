@@ -18,7 +18,13 @@ if [ -f .env ]; then
     done < <(grep -v '^#' .env | grep -v '^$')
 fi
 
-echo "🔨 Docker 이미지 빌드 시작: $IMAGE_NAME:$TAG"
+# Check dining-deps image exists
+if ! docker image inspect dining-deps:latest >/dev/null 2>&1; then
+    echo "⚠️  dining-deps 이미지가 없습니다. 먼저 빌드합니다..."
+    ./build-deps.sh
+fi
+
+echo "🔨 앱 이미지 빌드: $IMAGE_NAME:$TAG"
 docker build $BUILD_ARGS -t "$IMAGE_NAME:$TAG" .
 
 echo "✅ 빌드 완료: $IMAGE_NAME:$TAG"

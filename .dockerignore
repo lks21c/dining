@@ -5,3 +5,4 @@ node_modules
 dev.db
 src/generated
 docs
+.deps-hash

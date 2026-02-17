@@ -1,72 +1,70 @@
 #!/bin/bash
 
-# Dining Docker 안전 재시작 스크립트
-# NAS에서 실행: ./restart.sh
-# 사전 요구사항: hydra01 사용자가 docker 그룹에 속해야 함
-#   sudo synogroup --add docker hydra01
+# Dining Docker 재시작 스크립트 (NAS에서 실행)
+# deps 변경 자동 감지: package.json / prisma 스키마 변경 시에만 deps 재빌드
 
 set -e
 
-# docker 그룹 체크 (Synology는 groups 명령이 없어서 id 사용)
 if ! id | grep -q docker; then
     echo "⚠️ docker 그룹에 속해있지 않습니다."
-    echo "다음 명령 실행 후 다시 로그인하세요:"
     echo "  sudo synogroup --add docker \$USER"
     exit 1
 fi
 
-echo "🔄 Dining Docker 재시작 시작..."
+echo "🔄 Dining 재시작 시작..."
 
-# 1. 기존 dining 컨테이너 중지 및 제거
-echo "📦 기존 컨테이너 중지 및 제거..."
+# 1. 기존 컨테이너 중지
+echo "📦 기존 컨테이너 중지..."
 CONTAINER_ID=$(docker ps -q --filter "ancestor=dining:latest")
 if [ -n "$CONTAINER_ID" ]; then
-    # 종료 전 WAL checkpoint (DB 손상 방지)
-    echo "🔧 컨테이너 내 WAL checkpoint 실행..."
     docker exec $CONTAINER_ID sqlite3 /app/dev.db \
         "PRAGMA wal_checkpoint(TRUNCATE);" 2>/dev/null || true
     docker stop $CONTAINER_ID
     docker rm $CONTAINER_ID
-    echo "✅ 컨테이너 안전 종료 완료: $CONTAINER_ID"
+    echo "✅ 컨테이너 종료: $CONTAINER_ID"
 else
-    echo "ℹ️  실행 중인 dining 컨테이너 없음"
+    echo "ℹ️  실행 중인 컨테이너 없음"
 fi
 
-# 중지된 dining 컨테이너도 정리
-STOPPED_CONTAINERS=$(docker ps -aq --filter "ancestor=dining:latest")
-if [ -n "$STOPPED_CONTAINERS" ]; then
-    docker rm $STOPPED_CONTAINERS
-    echo "🧹 중지된 컨테이너 정리 완료"
-fi
+STOPPED=$(docker ps -aq --filter "ancestor=dining:latest")
+[ -n "$STOPPED" ] && docker rm $STOPPED
 
-# 2. Git pull로 최신 코드 가져오기
+# 2. Git pull
 echo "📥 최신 코드 pull..."
 GIT_SSH_COMMAND="ssh -i ./id_rsa -o StrictHostKeyChecking=no" \
     git pull git@github.com:lks21c/dining.git main
 
-# 3. Docker 이미지 빌드
-echo "🔨 Docker 이미지 빌드..."
+# 3. deps 변경 감지 → 필요 시에만 deps 재빌드
+CURRENT_HASH=$(md5sum package.json package-lock.json prisma/schema.prisma 2>/dev/null | md5sum | cut -d' ' -f1)
+SAVED_HASH=$(cat .deps-hash 2>/dev/null || echo "")
+
+if [ "$CURRENT_HASH" != "$SAVED_HASH" ] || ! docker image inspect dining-deps:latest >/dev/null 2>&1; then
+    echo "📦 deps 변경 감지 → deps 이미지 재빌드..."
+    ./build-deps.sh
+else
+    echo "⏩ deps 변경 없음 → 스킵"
+fi
+
+# 4. 앱 이미지 빌드 (소스만, 빠름)
+echo "🔨 앱 빌드..."
 ./build.sh
 
-# 4. dangling 이미지 정리
-echo "🧹 미사용 Docker 이미지 정리..."
-docker image prune -f
+# 5. dangling 이미지 정리 (deps 이미지는 보존)
+docker image prune -f --filter "label!=dining-deps"
 
-# 5. 새 컨테이너 실행
-echo "🚀 새 컨테이너 시작..."
+# 6. 새 컨테이너 시작
+echo "🚀 컨테이너 시작..."
 docker run -p 3232:3232 --restart=unless-stopped \
     --env-file .env \
     -v $(pwd)/dev.db:/app/dev.db \
     -d dining:latest
 
-# 6. 실행 확인
 sleep 2
 NEW_CONTAINER=$(docker ps -q --filter "ancestor=dining:latest")
 if [ -n "$NEW_CONTAINER" ]; then
-    echo "✅ Dining 재시작 완료!"
-    echo "📋 컨테이너 ID: $NEW_CONTAINER"
+    echo "✅ 재시작 완료! 컨테이너: $NEW_CONTAINER"
     docker ps --filter "ancestor=dining:latest"
 else
-    echo "❌ 컨테이너 시작 실패. 로그 확인 필요"
+    echo "❌ 시작 실패"
     exit 1
 fi
