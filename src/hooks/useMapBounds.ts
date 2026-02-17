@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import type { Bounds } from "@/types/place";
 
 /** Minimum zoom level to show place markers (neighborhood level) */
-export const MIN_MARKER_ZOOM = 16;
+export const MIN_MARKER_ZOOM = 15;
 
 export function useMapBounds(map: naver.maps.Map | null) {
   const [bounds, setBounds] = useState<Bounds | null>(null);

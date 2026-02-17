@@ -12,10 +12,12 @@ interface BottomSheetProps {
   children: ReactNode;
   expandOnContent?: boolean;
   fullHeight?: boolean;
+  onCollapse?: () => void;
 }
 
-export default function BottomSheet({ children, expandOnContent, fullHeight }: BottomSheetProps) {
+export default function BottomSheet({ children, expandOnContent, fullHeight, onCollapse }: BottomSheetProps) {
   const [heightPercent, setHeightPercent] = useState(SNAP_POINTS.half);
+  const [dragOffset, setDragOffset] = useState(0);
   const dragging = useRef(false);
   const startY = useRef(0);
   const startHeight = useRef(0);
@@ -27,6 +29,11 @@ export default function BottomSheet({ children, expandOnContent, fullHeight }: B
     }
   }, [expandOnContent]);
 
+  // Reset drag offset when fullHeight changes
+  useEffect(() => {
+    setDragOffset(0);
+  }, [fullHeight]);
+
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     dragging.current = true;
     startY.current = e.touches[0].clientY;
@@ -35,17 +42,33 @@ export default function BottomSheet({ children, expandOnContent, fullHeight }: B
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (!dragging.current) return;
-    const deltaY = startY.current - e.touches[0].clientY;
-    const deltaPercent = (deltaY / window.innerHeight) * 100;
-    const newHeight = Math.min(
-      SNAP_POINTS.full,
-      Math.max(SNAP_POINTS.collapsed, startHeight.current + deltaPercent)
-    );
-    setHeightPercent(newHeight);
-  }, []);
+    const deltaY = e.touches[0].clientY - startY.current;
+
+    if (fullHeight) {
+      // In fullHeight mode, only allow dragging down (positive deltaY)
+      setDragOffset(Math.max(0, deltaY));
+    } else {
+      const deltaPercent = (startY.current - e.touches[0].clientY) / window.innerHeight * 100;
+      const newHeight = Math.min(
+        SNAP_POINTS.full,
+        Math.max(SNAP_POINTS.collapsed, startHeight.current + deltaPercent)
+      );
+      setHeightPercent(newHeight);
+    }
+  }, [fullHeight]);
 
   const handleTouchEnd = useCallback(() => {
     dragging.current = false;
+
+    if (fullHeight) {
+      // If dragged down more than 20% of viewport, collapse
+      if (dragOffset > window.innerHeight * 0.2 && onCollapse) {
+        onCollapse();
+      }
+      setDragOffset(0);
+      return;
+    }
+
     // Snap to nearest point
     const points = Object.values(SNAP_POINTS);
     const nearest = points.reduce((prev, curr) =>
@@ -54,14 +77,22 @@ export default function BottomSheet({ children, expandOnContent, fullHeight }: B
         : prev
     );
     setHeightPercent(nearest);
-  }, [heightPercent]);
+  }, [heightPercent, fullHeight, dragOffset, onCollapse]);
+
+  const sheetStyle: React.CSSProperties = fullHeight
+    ? {
+        height: "100dvh",
+        transform: dragOffset > 0 ? `translateY(${dragOffset}px)` : undefined,
+        transition: dragging.current ? "none" : "transform 0.3s ease-out",
+      }
+    : { height: `${heightPercent}dvh` };
 
   return (
     <div
       className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl
-        transition-[height] duration-300 ease-out z-40 flex flex-col will-change-[height]
+        transition-[height] duration-300 ease-out z-40 flex flex-col will-change-[height,transform]
         md:static md:w-[380px] md:!h-full md:rounded-none md:shadow-xl md:border-r border-gray-200"
-      style={{ height: fullHeight ? "100dvh" : `${heightPercent}dvh` }}
+      style={sheetStyle}
     >
       {/* Drag handle (mobile only) */}
       <div

@@ -7,6 +7,7 @@ declare namespace naver.maps {
     getZoom(): number;
     getBounds(): LatLngBounds;
     panTo(latlng: LatLng, transitionOptions?: object): void;
+    setOptions(options: Partial<MapOptions>): void;
     destroy(): void;
   }
 

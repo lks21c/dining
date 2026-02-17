@@ -286,6 +286,12 @@ export default function Home() {
     }
   }, [map, searchResult]);
 
+  // Hide zoom controls when detail view is open (mobile)
+  useEffect(() => {
+    if (!map) return;
+    map.setOptions({ zoomControl: !selectedPlace });
+  }, [map, selectedPlace]);
+
   // Show toast and refetch when crawl completes
   useEffect(() => {
     if (crawlResult) {
@@ -492,7 +498,7 @@ export default function Home() {
       </div>
 
       {/* Side panel / Bottom sheet */}
-      <BottomSheet expandOnContent={!!searchResult} fullHeight={!!selectedPlace}>
+      <BottomSheet expandOnContent={!!searchResult} fullHeight={!!selectedPlace} onCollapse={() => setSelectedPlace(null)}>
         {selectedPlace ? (
           <PlaceDetail
             place={selectedPlace}
