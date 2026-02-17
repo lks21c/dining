@@ -11,6 +11,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# NEXT_PUBLIC_* vars must be present at build time for static pre-rendering
+ARG NEXT_PUBLIC_NAVER_MAP_CLIENT_ID
+ENV NEXT_PUBLIC_NAVER_MAP_CLIENT_ID=$NEXT_PUBLIC_NAVER_MAP_CLIENT_ID
 RUN npx prisma generate && npm run build
 
 # Stage 3: runner — standalone execution
