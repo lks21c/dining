@@ -33,7 +33,12 @@ function loadMessages(): ChatMessage[] {
   return [];
 }
 
-export default function PromptChatView() {
+interface PromptChatViewProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onNavigateToMap?: (result: any) => void;
+}
+
+export default function PromptChatView({ onNavigateToMap }: PromptChatViewProps) {
   const [messages, setMessages] = useState<ChatMessage[]>(loadMessages);
   const [sending, setSending] = useState(false);
   const [resolvingId, setResolvingId] = useState<number | null>(null);
@@ -138,9 +143,6 @@ export default function PromptChatView() {
     const msg = messagesRef.current.find((m) => m.id === msgId);
     if (!msg || msg.role !== "assistant" || !msg.text) return;
 
-    // Open blank tab synchronously (before any await) to avoid popup blocker
-    const newTab = window.open("about:blank", "_blank");
-
     setResolvingId(msgId);
     setResolveError(null);
 
@@ -158,45 +160,21 @@ export default function PromptChatView() {
         const data = await res.json().catch(() => null);
         const errMsg = data?.error || "장소 해석에 실패했습니다";
         setResolveError(errMsg);
-        if (newTab) newTab.close();
         return;
       }
 
       const result = await res.json();
 
-      // Build shareable hash URL from result
-      // If multiple courses exist, use pipe-delimited format: "A,B,C|A,B,D"
-      const region = result.center?.name || "";
-      let placesParam: string;
-      if (result.courses && result.courses.length > 1) {
-        const placeMap = new Map(
-          (result.places as { id: string; name: string }[]).map((p) => [p.id, p.name])
-        );
-        placesParam = result.courses
-          .map((c: { stops: { id: string }[] }) =>
-            c.stops.map((s) => placeMap.get(s.id) || "").filter(Boolean).join(",")
-          )
-          .filter((g: string) => g)
-          .join("|");
-      } else {
-        placesParam = result.places?.map((p: { name: string }) => p.name).join(",") || "";
-      }
-      const params = new URLSearchParams({ region, places: placesParam });
-      const url = `${window.location.origin}${window.location.pathname}#!/search?${params.toString()}`;
-
-      // Cache result so the new tab can use it instantly without re-fetching
-      localStorage.setItem("chatResolveCache", JSON.stringify(result));
-
-      if (newTab) {
-        newTab.location.href = url;
+      // Navigate to map within the same app
+      if (onNavigateToMap) {
+        onNavigateToMap(result);
       }
     } catch {
       setResolveError("네트워크 오류가 발생했습니다");
-      if (newTab) newTab.close();
     } finally {
       setResolvingId(null);
     }
-  }, []);
+  }, [onNavigateToMap]);
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#B2C7D9]">

@@ -337,7 +337,10 @@ export default function Home() {
       />
 
       {pageMode === "prompt" ? (
-        <PromptChatView />
+        <PromptChatView onNavigateToMap={(result) => {
+          setSearchResult(result);
+          handleSetPageMode("search");
+        }} />
       ) : pageMode === "places" ? (
         <AllPlacesView onPlaceClick={handleGridPlaceClick} />
       ) : (
