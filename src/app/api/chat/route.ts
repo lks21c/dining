@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { openrouter, MODEL } from "@/lib/openrouter";
+import { getOpenRouter, MODEL } from "@/lib/openrouter";
 
 export async function POST(req: NextRequest) {
   const { messages } = await req.json();
@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const completion = await openrouter.chat.completions.create({
+    const completion = await getOpenRouter().chat.completions.create({
       model: MODEL,
       messages: messages.map((m: { role: string; content: string }) => ({
         role: m.role as "user" | "assistant",

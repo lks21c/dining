@@ -5,7 +5,7 @@ import { saveCrawledPlaces } from "@/lib/agents/utils/place-cache";
 import { classifyPlaces } from "@/lib/classify";
 import { geocode } from "@/lib/geocode";
 import { prisma } from "@/lib/prisma";
-import { openrouter, MODEL, extractJson } from "@/lib/openrouter";
+import { getOpenRouter, MODEL, extractJson } from "@/lib/openrouter";
 import type { Bounds } from "@/types/place";
 
 /* ---------- SSE helper ---------- */
@@ -31,7 +31,7 @@ interface ParkingData {
 
 async function fetchParkingByKeyword(keyword: string): Promise<ParkingData[]> {
   try {
-    const completion = await openrouter.chat.completions.create({
+    const completion = await getOpenRouter().chat.completions.create({
       model: MODEL,
       temperature: 0,
       max_tokens: 8000,

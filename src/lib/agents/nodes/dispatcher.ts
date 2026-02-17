@@ -1,4 +1,4 @@
-import { openrouter, MODEL } from "@/lib/openrouter";
+import { getOpenRouter, MODEL } from "@/lib/openrouter";
 import type { AgentState } from "../state";
 import { findCachedPlaces } from "../utils/place-cache";
 
@@ -10,7 +10,7 @@ export async function dispatcher(
   // Generate optimized Korean search keywords via LLM
   let searchTerms: string;
   try {
-    const completion = await openrouter.chat.completions.create({
+    const completion = await getOpenRouter().chat.completions.create({
       model: MODEL,
       temperature: 0,
       max_tokens: 2000,

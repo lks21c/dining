@@ -1,4 +1,4 @@
-import { openrouter, FLASH_MODEL, extractJson } from "@/lib/openrouter";
+import { getOpenRouter, FLASH_MODEL, extractJson } from "@/lib/openrouter";
 import { prisma } from "@/lib/prisma";
 
 export type PlaceCategory = "restaurant" | "cafe" | "bar" | "bakery";
@@ -52,7 +52,7 @@ export async function classifyPlaces(
     }));
 
     try {
-      const completion = await openrouter.chat.completions.create({
+      const completion = await getOpenRouter().chat.completions.create({
         model: FLASH_MODEL,
         temperature: 0,
         max_tokens: 4000,

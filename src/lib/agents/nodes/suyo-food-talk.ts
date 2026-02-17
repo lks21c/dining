@@ -1,4 +1,4 @@
-import { openrouter, MODEL, extractJson } from "@/lib/openrouter";
+import { getOpenRouter, MODEL, extractJson } from "@/lib/openrouter";
 import type { AgentState, RawCrawledPlace } from "../state";
 import { googleSearch } from "../utils/google-search";
 
@@ -19,7 +19,7 @@ export async function suyoFoodTalkAgent(
       .map((r) => `제목: ${r.title}\n내용: ${r.snippet}`)
       .join("\n---\n");
 
-    const completion = await openrouter.chat.completions.create({
+    const completion = await getOpenRouter().chat.completions.create({
       model: MODEL,
       temperature: 0,
       max_tokens: 4000,

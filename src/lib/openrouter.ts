@@ -1,9 +1,16 @@
 import OpenAI from "openai";
 
-export const openrouter = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
-});
+let _client: OpenAI | null = null;
+
+export function getOpenRouter(): OpenAI {
+  if (!_client) {
+    _client = new OpenAI({
+      baseURL: "https://openrouter.ai/api/v1",
+      apiKey: process.env.OPENROUTER_API_KEY,
+    });
+  }
+  return _client;
+}
 
 export const MODEL = process.env.OPENROUTER_MODEL || "google/gemini-3-pro-preview";
 export const FLASH_MODEL = process.env.OPENROUTER_FLASH_MODEL || "google/gemini-2.5-flash";

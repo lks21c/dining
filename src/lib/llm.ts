@@ -1,4 +1,4 @@
-import { openrouter, MODEL, extractJson } from "@/lib/openrouter";
+import { getOpenRouter, MODEL, extractJson } from "@/lib/openrouter";
 import type { Place, PlaceType, Course, CourseStop } from "@/types/place";
 
 function compressPlace(
@@ -134,7 +134,7 @@ export interface ExtractLocationResult {
 
 export async function extractLocation(query: string): Promise<ExtractLocationResult> {
   try {
-    const completion = await openrouter.chat.completions.create({
+    const completion = await getOpenRouter().chat.completions.create({
       model: MODEL,
       temperature: 0,
       max_tokens: 2000,
@@ -195,7 +195,7 @@ ${compressed.join("\n")}
 사용자 요청: ${query}`;
 
   try {
-    const completion = await openrouter.chat.completions.create({
+    const completion = await getOpenRouter().chat.completions.create({
       model: MODEL,
       temperature: 0.5,
       max_tokens: 16000,

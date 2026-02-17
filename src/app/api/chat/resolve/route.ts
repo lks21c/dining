@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { openrouter, FLASH_MODEL, extractJson } from "@/lib/openrouter";
+import { getOpenRouter, FLASH_MODEL, extractJson } from "@/lib/openrouter";
 import { geocode, searchPlace } from "@/lib/geocode";
 import { boundsFromCenter } from "@/lib/bounds";
 import { getRecommendations } from "@/lib/llm";
@@ -48,7 +48,7 @@ interface ExtractedPlaces {
 async function extractPlacesFromResponse(
   aiResponse: string
 ): Promise<ExtractedPlaces> {
-  const completion = await openrouter.chat.completions.create({
+  const completion = await getOpenRouter().chat.completions.create({
     model: FLASH_MODEL,
     temperature: 0,
     max_tokens: 2000,
