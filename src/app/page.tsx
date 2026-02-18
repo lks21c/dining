@@ -46,6 +46,7 @@ export default function Home() {
   const [regionName, setRegionName] = useState<string | undefined>();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [chatMapLoading, setChatMapLoading] = useState(false);
+  const [cameFromChat, setCameFromChat] = useState(false);
 
   // Hash-bang routing: #!/prompt ↔ #!/search ↔ #!/places
   const [pageMode, setPageMode] = useState<PageMode>(() => {
@@ -64,9 +65,15 @@ export default function Home() {
     }
     function onHashChange() {
       const hash = window.location.hash;
-      if (hash === "#!/prompt") setPageMode("prompt");
-      else if (hash === "#!/places") setPageMode("places");
-      else setPageMode("search");
+      if (hash === "#!/prompt") {
+        setPageMode("prompt");
+        setCameFromChat(false);
+      } else if (hash === "#!/places") {
+        setPageMode("places");
+        setCameFromChat(false);
+      } else {
+        setPageMode("search");
+      }
     }
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
@@ -257,6 +264,7 @@ export default function Home() {
     clearSearch();
     setSelectedPlace(null);
     setActiveCourse(0);
+    setCameFromChat(false);
   }, [clearSearch]);
 
   const handleRegionSelect = useCallback(
@@ -339,7 +347,33 @@ export default function Home() {
       {pageMode === "prompt" ? (
         <PromptChatView onNavigateToMap={(result) => {
           setSearchResult(result);
-          handleSetPageMode("search");
+          setCameFromChat(true);
+
+          const region = result.center?.name;
+          if (region && result.places?.length) {
+            // Build places param: single course → "A,B,C" / multi → "A,B|C,D"
+            let placesStr: string;
+            if (result.courses?.length > 1) {
+              const placeMap = new Map<string, Place>(result.places.map((p: Place) => [p.id, p]));
+              placesStr = result.courses
+                .map((c: { stops: { id: string }[] }) =>
+                  c.stops.map((s) => placeMap.get(s.id)?.name).filter(Boolean).join(",")
+                )
+                .join("|");
+            } else {
+              placesStr = result.places.map((p: Place) => p.name).join(",");
+            }
+
+            // Cache for instant reload
+            localStorage.setItem("chatResolveCache", JSON.stringify(result));
+
+            // Push URL with params (directly — handleSetPageMode strips params)
+            const params = new URLSearchParams({ region, places: placesStr });
+            window.history.pushState(null, "", `#!/search?${params.toString()}`);
+            setPageMode("search");
+          } else {
+            handleSetPageMode("search");
+          }
         }} />
       ) : pageMode === "places" ? (
         <AllPlacesView onPlaceClick={handleGridPlaceClick} />
@@ -357,6 +391,23 @@ export default function Home() {
           searching={searching}
           hasResult={!!searchResult}
         />
+
+        {/* Back to chat button — when navigated from chat */}
+        {cameFromChat && searchResult && (
+          <button
+            className="absolute left-3 z-30 flex items-center gap-1 px-3 py-1.5 bg-white/90 backdrop-blur-sm rounded-full shadow-md text-sm text-gray-700 hover:bg-white active:bg-gray-100 transition-colors"
+            style={{ top: "calc(var(--sai-top) + 4rem)" }}
+            onClick={() => {
+              setCameFromChat(false);
+              handleSetPageMode("prompt");
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5" /><path d="M12 19l-7-7 7-7" />
+            </svg>
+            채팅으로
+          </button>
+        )}
 
         {/* Filter tags + Region search — only when not in search mode */}
         {isLoaded && !searchResult && (

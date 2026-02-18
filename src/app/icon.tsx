@@ -16,13 +16,13 @@ export default function Icon() {
           alignItems: "center",
           justifyContent: "center",
           borderRadius: "6px",
-          background: isLocal ? "#22c55e" : "#f97316",
+          background: isLocal ? "#22c55e" : "#000000",
           color: "white",
           fontSize: "20px",
           fontWeight: 700,
         }}
       >
-        {isLocal ? "D" : "외"}
+        D
       </div>
     ),
     { ...size },
