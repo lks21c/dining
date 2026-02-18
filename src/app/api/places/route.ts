@@ -62,10 +62,7 @@ export async function GET(req: NextRequest) {
 
   const crawledAsPlaces = mapCrawledToPlaces(crawledPlaces, llmTypeMap);
   rankByDiningCode(crawledAsPlaces, crawledPlaces);
-  const rankedCrawled = crawledAsPlaces.filter(
-    (p) => p.type === "parking" || p.diningcodeRank != null
-  );
-  const places = deduplicatePlaces(seedPlaces, rankedCrawled);
+  const places = deduplicatePlaces(seedPlaces, crawledAsPlaces);
 
   return NextResponse.json(places);
 }

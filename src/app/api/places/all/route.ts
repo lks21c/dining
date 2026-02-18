@@ -28,10 +28,7 @@ export async function GET() {
   const seedPlaces = mapSeedPlaces(restaurants, cafes, parkingLots);
   const crawledAsPlaces = mapCrawledToPlaces(crawledPlaces);
   rankByDiningCode(crawledAsPlaces, crawledPlaces);
-  const rankedCrawled = crawledAsPlaces.filter(
-    (p) => p.type === "parking" || p.diningcodeRank != null
-  );
-  const allPlaces = deduplicatePlaces(seedPlaces, rankedCrawled);
+  const allPlaces = deduplicatePlaces(seedPlaces, crawledAsPlaces);
 
   // Build address lookup from crawled places
   const addressMap = new Map<string, string>();
