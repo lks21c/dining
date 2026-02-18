@@ -130,7 +130,10 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    const allPlaces = [...seedPlaces, ...crawledAsPlaces];
+    const rankedCrawled = crawledAsPlaces.filter(
+      (p) => p.type === "parking" || p.diningcodeRank != null
+    );
+    const allPlaces = [...seedPlaces, ...rankedCrawled];
 
     if (allPlaces.length === 0) {
       return NextResponse.json({
