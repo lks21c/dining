@@ -12,8 +12,12 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
+const isLocal = process.env.NEXT_PUBLIC_APP_ENV === "local";
+
 export const metadata: Metadata = {
-  title: "외출 플래너 - AI 맛집·카페·주차 추천",
+  title: isLocal
+    ? "[DEV] 외출 플래너"
+    : "외출 플래너 - AI 맛집·카페·주차 추천",
   description: "자연어로 맛집, 카페, 주차장을 통합 추천받고 최적 동선을 확인하세요.",
 };
 

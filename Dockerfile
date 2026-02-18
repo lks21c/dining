@@ -13,4 +13,4 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3232
 EXPOSE 3232
 
-CMD ["sh", "-c", "cd /repo/dining && npm install && npx prisma generate && npm run build && node .next/standalone/server.js"]
+CMD ["sh", "-c", "cd /repo/dining && npm install && npx prisma generate && npm run build && cp -r .next/static .next/standalone/.next/static && node .next/standalone/server.js"]
