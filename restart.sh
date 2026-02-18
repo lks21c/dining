@@ -73,7 +73,8 @@ echo "🚀 컨테이너 시작..."
 docker run -p 3232:3232 --restart=unless-stopped \
     --env-file .env \
     -v $(pwd):/repo/dining \
-    -d dining:latest
+    -d dining:latest \
+    sh -c "cd /repo/dining && npm install && npx prisma generate && npm run build && npx next start -p 3232"
 
 # 컨테이너 내 빌드 시간 고려하여 대기
 echo "⏳ 컨테이너 내 빌드 대기 (최대 120초)..."
