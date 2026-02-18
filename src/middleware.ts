@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const PUBLIC_PATHS = ["/login", "/api/auth"];
-const STATIC_PREFIXES = ["/_next", "/favicon.ico"];
+const STATIC_PREFIXES = ["/_next", "/favicon.ico", "/icon"];
 
 async function hmacHex(secret: string, data: string): Promise<string> {
   const enc = new TextEncoder();
