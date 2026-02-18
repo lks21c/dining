@@ -129,11 +129,13 @@ export default function Home() {
 
     // 1. Check localStorage cache (set by the chat tab that just opened us)
     const cached = localStorage.getItem("chatResolveCache");
+    console.log("[URL load] region:", region, "places:", allNames, "cache:", cached ? "hit" : "miss");
     if (cached) {
       try {
         const result = JSON.parse(cached);
         // Verify the cache matches the URL region
         if (result.center?.name === region) {
+          console.log("[URL load] Cache match, using cached result");
           const rebuilt = rebuildCourses(result.places || []);
           if (rebuilt) {
             result.courses = rebuilt;
@@ -144,22 +146,28 @@ export default function Home() {
           localStorage.removeItem("chatResolveCache");
           return;
         }
+        console.log("[URL load] Cache region mismatch:", result.center?.name, "!==", region);
       } catch { /* fall through to API */ }
     }
 
     // 2. No cache (URL shared/bookmarked) → call resolve API with region + places
+    console.log("[URL load] Calling resolve API...");
     setChatMapLoading(true);
     fetch("/api/chat/resolve", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ region, places: allNames }),
     })
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`API ${r.status}`);
+        return r.json();
+      })
       .then((result) => {
         if (result.error) {
-          console.error("[resolve from URL]", result.error);
+          console.error("[URL load] API error:", result.error);
           return;
         }
+        console.log("[URL load] API success, places:", result.places?.length);
         const rebuilt = rebuildCourses(result.places || []);
         if (rebuilt) {
           result.courses = rebuilt;
@@ -168,7 +176,7 @@ export default function Home() {
         }
         setSearchResult(result);
       })
-      .catch(console.error)
+      .catch((err) => console.error("[URL load] Fetch error:", err))
       .finally(() => setChatMapLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
