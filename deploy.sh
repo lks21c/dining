@@ -5,24 +5,39 @@
 
 set -e
 
+REMOTE_DIR="/volume1/repo/dining"
+REMOTE_CMD="export PATH=/usr/local/bin:\$PATH && cd $REMOTE_DIR && ./restart.sh"
+
 # 네트워크 환경 감지 (hostname 기반)
 CURRENT_HOST=$(hostname)
 if [ "$CURRENT_HOST" = "Mac.asus.com" ]; then
-    REMOTE_HOST="hydra01@192.168.1.177"
-    echo "🏠 홈 맥북 감지 → ${REMOTE_HOST}"
+    PRIMARY="hydra01@192.168.1.177"
+    FALLBACK="hydra01@hydra01.asuscomm.com"
+    echo "🏠 홈 맥북 감지 → 1차: ${PRIMARY} / 2차: ${FALLBACK}"
 else
-    REMOTE_HOST="hydra01@hydra01.asuscomm.com"
-    echo "🌐 외부 환경 → ${REMOTE_HOST}"
+    PRIMARY="hydra01@hydra01.asuscomm.com"
+    FALLBACK=""
+    echo "🌐 외부 환경 → ${PRIMARY}"
 fi
 
-REMOTE_DIR="/volume1/repo/dining"
-
 echo "=== 리모트 서버 배포 시작 ==="
-echo "SSH 접속: $REMOTE_HOST"
 echo ""
 
-echo "🚀 restart.sh 원격 실행 중..."
-ssh $REMOTE_HOST "export PATH=/usr/local/bin:\$PATH && cd $REMOTE_DIR && ./restart.sh"
+echo "🚀 restart.sh 원격 실행 중... (${PRIMARY})"
+if ssh -o ConnectTimeout=10 $PRIMARY "$REMOTE_CMD"; then
+    echo ""
+    echo "=== 배포 완료 ==="
+    exit 0
+fi
 
-echo ""
-echo "=== 배포 완료 ==="
+if [ -n "$FALLBACK" ]; then
+    echo ""
+    echo "⚠️ 1차 접속 실패 → fallback: ${FALLBACK}"
+    echo ""
+    ssh -o ConnectTimeout=15 $FALLBACK "$REMOTE_CMD"
+    echo ""
+    echo "=== 배포 완료 (fallback) ==="
+else
+    echo "❌ 배포 실패"
+    exit 1
+fi
