@@ -54,6 +54,8 @@ if [ -f ./dev.db ]; then
             WHERE source = 'diningcode'
             AND json_extract(metadata, '\$.score') IS NOT NULL
         );
+        DELETE FROM Restaurant;
+        DELETE FROM Cafe;
         SELECT changes();
     " 2>/dev/null)
     [ -n "$DELETED" ] && [ "$DELETED" -gt 0 ] 2>/dev/null && echo "  🗑️ 미순위 장소 ${DELETED}건 삭제"
