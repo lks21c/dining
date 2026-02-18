@@ -8,14 +8,19 @@ Commit all changes and push to remote repository.
 
 ## Instructions
 
-1. **Check git status**:
+1. **SQLite WAL flush** (if dev.db exists):
+   ```bash
+   sqlite3 dev.db "PRAGMA wal_checkpoint(TRUNCATE);" 2>/dev/null || true
+   ```
+
+2. **Check git status**:
    ```bash
    git status
    ```
 
-2. **If no changes**, report "No changes to commit" and exit.
+3. **If no changes**, report "No changes to commit" and exit.
 
-3. **If changes exist**:
+4. **If changes exist**:
    - Stage all changes:
      ```bash
      git add -A
@@ -35,7 +40,7 @@ Commit all changes and push to remote repository.
      git push origin main
      ```
 
-4. **Report results**:
+5. **Report results**:
    - Files changed
    - Commit hash
    - Branch pushed to

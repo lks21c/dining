@@ -1,20 +1,16 @@
-# Source build: uses pre-built dining-deps with node_modules + prisma client
-FROM dining-deps:latest AS builder
-WORKDIR /app
-COPY . .
-ARG NEXT_PUBLIC_NAVER_MAP_CLIENT_ID
-ENV NEXT_PUBLIC_NAVER_MAP_CLIENT_ID=$NEXT_PUBLIC_NAVER_MAP_CLIENT_ID
-ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+FROM node:24-alpine
 
-# Runtime: minimal production image
-FROM node:24-alpine AS runner
-WORKDIR /app
-ENV NODE_ENV=production
+WORKDIR /repo
+
+# native 모듈 빌드 도구 (better-sqlite3 등)
+RUN apk add --no-cache python3 make g++ bash sqlite
+
+# npm 캐시 워밍 (마운트 시 node_modules 없으면 빠른 설치 위해)
+COPY package.json package-lock.json /tmp/deps/
+RUN cd /tmp/deps && npm install && rm -rf /tmp/deps
+
 ENV NEXT_TELEMETRY_DISABLED=1
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
 ENV PORT=3232
 EXPOSE 3232
-CMD ["node", "server.js"]
+
+CMD ["sh", "-c", "cd /repo/dining && npm install && npx prisma generate && npm run build && node .next/standalone/server.js"]

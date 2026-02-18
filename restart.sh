@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Dining Docker 재시작 스크립트 (NAS에서 실행)
-# deps 변경 자동 감지: package.json / prisma 스키마 변경 시에만 deps 재빌드
+# 소스를 볼륨 마운트하여 이미지 재빌드 없이 배포
 
 set -e
 
@@ -66,32 +66,24 @@ echo "📥 최신 코드 pull..."
 GIT_SSH_COMMAND="ssh -i ./id_rsa -o StrictHostKeyChecking=no" \
     git pull git@github.com:lks21c/dining.git main
 
-# 3. deps 변경 감지 → 필요 시에만 deps 재빌드
-CURRENT_HASH=$(md5sum package.json package-lock.json prisma/schema.prisma 2>/dev/null | md5sum | cut -d' ' -f1)
-SAVED_HASH=$(cat .deps-hash 2>/dev/null || echo "")
-
-if [ "$CURRENT_HASH" != "$SAVED_HASH" ] || ! docker image inspect dining-deps:latest >/dev/null 2>&1; then
-    echo "📦 deps 변경 감지 → deps 이미지 재빌드..."
-    ./build-deps.sh
-else
-    echo "⏩ deps 변경 없음 → 스킵"
-fi
-
-# 4. 앱 이미지 빌드 (소스만, 빠름)
-echo "🔨 앱 빌드..."
-./build.sh
-
-# 5. dangling 이미지 정리 (deps 이미지는 보존)
-docker image prune -f --filter "label!=dining-deps"
-
-# 6. 새 컨테이너 시작
+# 3. 새 컨테이너 시작 (소스 볼륨 마운트)
 echo "🚀 컨테이너 시작..."
 docker run -p 3232:3232 --restart=unless-stopped \
     --env-file .env \
-    -v $(pwd)/dev.db:/app/dev.db \
+    -v $(pwd):/repo/dining \
     -d dining:latest
 
-sleep 2
+# 컨테이너 내 빌드 시간 고려하여 대기
+echo "⏳ 컨테이너 내 빌드 대기 (최대 120초)..."
+for i in $(seq 1 24); do
+    sleep 5
+    if curl -s -o /dev/null -w "%{http_code}" http://localhost:3232 | grep -q "200\|304"; then
+        echo "✅ 서버 응답 확인!"
+        break
+    fi
+    echo "  ... $((i*5))초 경과"
+done
+
 NEW_CONTAINER=$(docker ps -q --filter "ancestor=dining:latest")
 if [ -n "$NEW_CONTAINER" ]; then
     echo "✅ 재시작 완료! 컨테이너: $NEW_CONTAINER"
