@@ -113,6 +113,7 @@ prisma/
 - **API routes**: `src/app/api/*/route.ts` — Next.js App Router 규칙
 - **DB 마이그레이션**: `npx prisma migrate dev` → `npx prisma generate`
 - **커밋 메시지**: conventional commits, 한국어 (`feat(chat): 기능 추가`)
+- **커밋 전 SQLite WAL flush**: `dev.db` 가 추적 대상이라 커밋 전에 `sqlite3 dev.db "PRAGMA wal_checkpoint(TRUNCATE);"` 를 돌린다 (`/gcp` 가 이 줄을 커밋 전 검사로 읽는다)
 - **quote style**: double quotes (`"`)
 - **세미콜론**: 있음
 
