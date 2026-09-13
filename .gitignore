@@ -52,3 +52,7 @@ next-env.d.ts
 
 # docker
 .deps-hash
+
+# 파이썬 바이트코드 캐시.
+__pycache__/
+*.pyc
